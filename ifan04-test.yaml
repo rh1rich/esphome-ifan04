@@ -1,0 +1,278 @@
+substitutions:
+  device_name: ifan04-test
+  device_displayname: IFAN04 Test
+
+esphome:
+  name: $device_name
+  friendly_name: $device_displayname
+  includes:
+    - ifan_remote.h
+
+esp8266:
+  board: esp8285
+  framework:
+    version: latest
+  early_pin_init: true
+  restore_from_flash: true
+
+preferences:
+  flash_write_interval: 5min
+
+# Enable logging
+# To use logging via uart (UART0 TX, GPIO01) you have to remove
+# uart_bus and the IFanRemote custom text_sensor.
+logger:
+  baud_rate: 0
+#  level: VERBOSE
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  password: !secret ota_pwd
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_pwd
+  fast_connect: yes
+
+  ap:
+    ssid: $device_name Fallback Hotspot
+    password: $device_name
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# GPIO00 ... Button
+# GPIO01 ... UART0 TX
+# GPIO03 ... UART0 RX (RF remote control)
+# GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
+# GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
+# GPIO09 ... Light Relay (D)
+# GPIO10 ... Buzzer
+# GPIO12 ... Fan Relay 2 (D11, 3uF cap on IFAN04-H)
+# GPIO13 ... LED
+# GPIO14 ... Fan Relay 1 (D5, 2.5uF cap on IFAN04-H)
+# GPIO15 ... Fan Relay 3 (D13, no cap)
+
+status_led:
+  pin:
+    number: GPIO13
+    inverted: true
+
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  frequency: 200kHz
+
+# UART configuration for the RF remote control
+# Logging via uart must be disabled to use this.
+uart:
+  rx_pin: GPIO03
+  baud_rate: 9600
+  id: uart_bus
+
+output:
+  - platform: gpio
+    id: light_relay
+    pin:
+      number: GPIO09
+      inverted: true
+  - platform: gpio
+    id: buzzer
+    pin:
+      number: GPIO10
+      inverted: true
+  - platform: gpio
+    id: fan_relay_1
+    pin: GPIO14
+  - platform: gpio
+    id: fan_relay_2
+    pin: GPIO12
+  - platform: gpio
+    id: fan_relay_3
+    pin: GPIO15
+  - platform: template
+    id: fan_relays
+    type: float
+    write_action:
+      - if: # Fan off
+          condition:
+            lambda: return (state < 0.3);
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - output.turn_on: buzzer
+                  - delay: 300ms
+                  - output.turn_off: buzzer
+            - output.turn_off: fan_relay_1
+            - output.turn_off: fan_relay_2
+            - output.turn_off: fan_relay_3
+      - if: # Fan low speed
+          condition:
+            lambda: return ((state >= 0.3) && (state < 0.6));
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+            - output.turn_off: fan_relay_3
+            - output.turn_on: fan_relay_1
+            - output.turn_on: fan_relay_2
+            - delay: 5s
+            - output.turn_off: fan_relay_2
+      - if: # Fan mid speed
+          condition:
+            lambda: return ((state >= 0.6) && (state < 0.9));
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+                  - delay: 100ms
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+            - output.turn_off: fan_relay_3
+            - output.turn_on: fan_relay_1
+            - output.turn_on: fan_relay_2
+      - if: # Fan high speed
+          condition:
+            lambda: return (state >= 0.9);
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+                  - delay: 100ms
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+                  - delay: 100ms
+                  - output.turn_on: buzzer
+                  - delay: 50ms
+                  - output.turn_off: buzzer
+            - output.turn_off: fan_relay_2
+            - output.turn_off: fan_relay_3
+            - output.turn_on: fan_relay_1
+            - delay: 5s
+            - output.turn_on: fan_relay_3
+            - output.turn_off: fan_relay_1
+            
+light:
+  - platform: binary
+    name: 'Light'
+    id: light_comp
+    output: light_relay
+
+fan:
+  - platform: speed
+    name: 'Fan'
+    id: fan_comp
+    output: fan_relays
+    speed_count: 3
+
+switch:
+  - platform: template
+    name: 'Buzzer enabled'
+    id: buzzer_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+    
+sensor:
+  - platform: wifi_signal
+    name: 'WiFi signal'
+  - platform: uptime
+    name: 'Uptime'
+    unit_of_measurement: s
+
+binary_sensor:
+  - platform: gpio
+    name: "Button"
+    pin:
+      number: GPIO00
+      inverted: true
+
+text_sensor:
+  - platform: version
+    name: 'ESPHome Version'
+
+# Commands from the RF remote control are sent via
+#  UART0 RX (= GPIO03)
+# These commands are translated into hex strings
+#  by the IFanRemote custom text_sensor (ifan_remote.h).
+# The first 2 bytes (AA55) and the checksum byte
+#  at the end, are removed.
+#
+# 1 (Light on/off)  = (AA55) 0104000104 (0A)
+# 2 (Mute/buzzer)   = (AA55) 0106000101 (09)
+# 3 (High speed)    = (AA55) 0104000103 (09)
+# 4 (Medium speed)  = (AA55) 0104000102 (08)
+# 5 (Fan off)       = (AA55) 0104000100 (06)
+# 6 (Low speed)     = (AA55) 0104000101 (07)
+# 7 (RF clearing)   = (AA55) 0101000102 (05)
+# 8 (Wi-Fi pairing) = (AA55) 0101000102 (05)
+
+  - platform: custom
+    lambda: |-
+      auto ifan_remote_sensor = new IFanRemote(id(uart_bus));
+      App.register_component(ifan_remote_sensor);
+      return {ifan_remote_sensor};
+    text_sensors:
+      name: 'RC command'
+      on_value:
+        then:
+          - if: # Light on/off
+              condition:
+                lambda: return x == "0104000104";
+              then:
+                - light.toggle: light_comp
+          - if: # Buzzer on/off
+              condition:
+                lambda: return x == "0106000101";
+              then:
+                - switch.toggle: buzzer_enabled
+                - output.turn_on: buzzer
+                - delay: 10ms
+                - output.turn_off: buzzer
+          - if: # Fan off
+              condition:
+                lambda: return x == "0104000100";
+              then:
+                - fan.turn_off: fan_comp
+          - if: # Fan low speed
+              condition:
+                lambda: return x == "0104000101";
+              then:
+                - fan.turn_on:
+                    id: fan_comp
+                    speed: 1
+          - if: # Fan mid speed
+              condition:
+                lambda: return x == "0104000102";
+              then:
+                - fan.turn_on:
+                    id: fan_comp
+                    speed: 2
+          - if: # Fan high speed
+              condition:
+                lambda: return x == "0104000103";
+              then:
+                - fan.turn_on:
+                    id: fan_comp
+                    speed: 3
