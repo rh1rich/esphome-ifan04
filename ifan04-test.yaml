@@ -51,7 +51,7 @@ web_server:
 # GPIO03 ... UART0 RX (RF remote control)
 # GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
 # GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
-# GPIO09 ... Light Relay (D)
+# GPIO09 ... Light Relay (D7)
 # GPIO10 ... Buzzer
 # GPIO12 ... Fan Relay 2 (D11, 3uF cap on IFAN04-H)
 # GPIO13 ... LED
