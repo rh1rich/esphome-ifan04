@@ -1,10 +1,11 @@
 substitutions:
-  device_name: ifan04-test
-  device_displayname: IFAN04 Test
+  devicename: ifan04-test
+  friendly_devicename: iFan04 Test
+  fan_startup_boost_time: 5s
 
 esphome:
-  name: $device_name
-  friendly_name: $device_displayname
+  name: $devicename
+  friendly_name: $friendly_devicename
   includes:
     - ifan_remote.h
 
@@ -19,27 +20,28 @@ preferences:
   flash_write_interval: 5min
 
 # Enable logging
-# To use logging via uart (UART0 TX, GPIO01) you have to remove
-# uart_bus and the IFanRemote custom text_sensor.
+# But disable it via UART0, because UART0 is used by the RF receiver
 logger:
   baud_rate: 0
 #  level: VERBOSE
 
+# Enable Home Assistant API
 api:
   encryption:
-    key: !secret api_key
+    key: !secret "api_key"
 
 ota:
-  password: !secret ota_pwd
+  password: !secret "ota_password"
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_pwd
+  ssid: !secret "wifi_ssid"
+  password: !secret "wifi_password"
   fast_connect: yes
 
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: $device_name Fallback Hotspot
-    password: $device_name
+    ssid: "$devicename"
+    password: !secret "wifi_fallback_password"
 
 captive_portal:
 
@@ -48,10 +50,10 @@ web_server:
 
 # GPIO00 ... Button
 # GPIO01 ... UART0 TX
-# GPIO03 ... UART0 RX (RF remote control)
+# GPIO03 ... UART0 RX (RF-Remote)
 # GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
 # GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
-# GPIO09 ... Light Relay (D7)
+# GPIO09 ... Light Relay (D)
 # GPIO10 ... Buzzer
 # GPIO12 ... Fan Relay 2 (D11, 3uF cap on IFAN04-H)
 # GPIO13 ... LED
@@ -63,17 +65,18 @@ status_led:
     number: GPIO13
     inverted: true
 
-i2c:
-  sda: GPIO04
-  scl: GPIO05
-  frequency: 200kHz
-
-# UART configuration for the RF remote control
-# Logging via uart must be disabled to use this.
+# UART0 (GPIO03) is used by the RF-receiver to send the received RF-commands
+# to the ESP.
 uart:
   rx_pin: GPIO03
   baud_rate: 9600
   id: uart_bus
+
+# I2C via the test points TP10 (= GPIO05) and TP11 (= GPIO04) on the PCB.
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  frequency: 200kHz
 
 output:
   - platform: gpio
@@ -99,80 +102,47 @@ output:
     id: fan_relays
     type: float
     write_action:
-      - if: # Fan off
+      - if:
           condition:
             lambda: return (state < 0.3);
           then:
-            - if:
-                condition:
-                  lambda: return id(buzzer_enabled).state;
-                then:
-                  - output.turn_on: buzzer
-                  - delay: 300ms
-                  - output.turn_off: buzzer
-            - output.turn_off: fan_relay_1
-            - output.turn_off: fan_relay_2
-            - output.turn_off: fan_relay_3
-      - if: # Fan low speed
+            - script.execute:
+                id: buzzer_play
+                action: fan_off
+            - script.execute:
+                id: fan_speed_set
+                speed: 0
+      - if:
           condition:
             lambda: return ((state >= 0.3) && (state < 0.6));
           then:
-            - if:
-                condition:
-                  lambda: return id(buzzer_enabled).state;
-                then:
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-            - output.turn_off: fan_relay_3
-            - output.turn_on: fan_relay_1
-            - output.turn_on: fan_relay_2
-            - delay: 5s
-            - output.turn_off: fan_relay_2
-      - if: # Fan mid speed
+            - script.execute:
+                id: buzzer_play
+                action: fan_1
+            - script.execute:
+                id: fan_speed_set
+                speed: 1
+      - if:
           condition:
             lambda: return ((state >= 0.6) && (state < 0.9));
           then:
-            - if:
-                condition:
-                  lambda: return id(buzzer_enabled).state;
-                then:
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-                  - delay: 100ms
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-            - output.turn_off: fan_relay_3
-            - output.turn_on: fan_relay_1
-            - output.turn_on: fan_relay_2
-      - if: # Fan high speed
+            - script.execute:
+                id: buzzer_play
+                action: fan_2
+            - script.execute:
+                id: fan_speed_set
+                speed: 2
+      - if:
           condition:
             lambda: return (state >= 0.9);
           then:
-            - if:
-                condition:
-                  lambda: return id(buzzer_enabled).state;
-                then:
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-                  - delay: 100ms
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-                  - delay: 100ms
-                  - output.turn_on: buzzer
-                  - delay: 50ms
-                  - output.turn_off: buzzer
-            - output.turn_off: fan_relay_2
-            - output.turn_off: fan_relay_3
-            - output.turn_on: fan_relay_1
-            - delay: 5s
-            - output.turn_on: fan_relay_3
-            - output.turn_off: fan_relay_1
-            
+            - script.execute:
+                id: buzzer_play
+                action: fan_3
+            - script.execute:
+                id: fan_speed_set
+                speed: 3
+
 light:
   - platform: binary
     name: 'Light'
@@ -192,14 +162,47 @@ switch:
     id: buzzer_enabled
     entity_category: config
     optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - script.execute:
+          id: buzzer_play
+          action: buzzer_on
+    on_turn_off:
+      - script.execute:
+          id: buzzer_play
+          action: buzzer_off
+  - platform: template
+    name: 'Light enabled'
+    id: light_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+  - platform: template
+    name: 'Fan startup-boost enabled'
+    id: fan_boost_enabled
+    entity_category: config
+    optimistic: True
     restore_mode: RESTORE_DEFAULT_OFF
     
+button:
+  - platform: restart
+    name: Restart
+    entity_category: diagnostic
+
 sensor:
   - platform: wifi_signal
-    name: 'WiFi signal'
+    name: 'WiFi Signal'
+    entity_category: diagnostic
   - platform: uptime
     name: 'Uptime'
+    entity_category: diagnostic
     unit_of_measurement: s
+# The sensor SHT3x (I2C) is connected via the test pins TP10 and TP11 on the PCB.
+  - platform: sht3xd
+    temperature:
+      name: 'Temperatur'
+    humidity:
+      name: 'Humidity'
 
 binary_sensor:
   - platform: gpio
@@ -207,72 +210,238 @@ binary_sensor:
     pin:
       number: GPIO00
       inverted: true
+  - platform: template
+    name: "Remote button light"
+    id: rf_button_light
+  - platform: template
+    name: "Remote button link"
+    id: rf_button_link
+
+# Remote commands via UART0
+#  RX: GPIO03
+#
+# The numbering of the following remote control buttons
+# starts with the top left button (1) and ends with the
+# bottom right button (8).
+#
+# 1 (Light)  = (AA55) 0104000104 (0A)
+# 2 (Buzzer) = (AA55) 0106000101 (09)
+# 3 (Fan 3)  = (AA55) 0104000103 (09)
+# 4 (Fan 2)  = (AA55) 0104000102 (08)
+# 5 (Fan 0)  = (AA55) 0104000100 (06)
+# 6 (Fan 1)  = (AA55) 0104000101 (07)
+# 7 = (AA55) 0101000102 (05)
+# 8 = (AA55) 0101000102 (05)
 
 text_sensor:
   - platform: version
     name: 'ESPHome Version'
-
-# Commands from the RF remote control are sent via
-#  UART0 RX (= GPIO03)
-# These commands are translated into hex strings
-#  by the IFanRemote custom text_sensor (ifan_remote.h).
-# The first 2 bytes (AA55) and the checksum byte
-#  at the end, are removed.
-#
-# 1 (Light on/off)  = (AA55) 0104000104 (0A)
-# 2 (Mute/buzzer)   = (AA55) 0106000101 (09)
-# 3 (High speed)    = (AA55) 0104000103 (09)
-# 4 (Medium speed)  = (AA55) 0104000102 (08)
-# 5 (Fan off)       = (AA55) 0104000100 (06)
-# 6 (Low speed)     = (AA55) 0104000101 (07)
-# 7 (RF clearing)   = (AA55) 0101000102 (05)
-# 8 (Wi-Fi pairing) = (AA55) 0101000102 (05)
+    entity_category: diagnostic
+  - platform: wifi_info
+    ip_address:
+      name: WiFi IP Address
+      entity_category: diagnostic
+    ssid:
+      name: WiFi SSID
+      entity_category: diagnostic
+    mac_address:
+      name: WiFi MAC Address
+      entity_category: diagnostic
+    dns_address:
+      name: WiFi DNS Address
+      entity_category: diagnostic
 
   - platform: custom
     lambda: |-
       auto ifan_remote_sensor = new IFanRemote(id(uart_bus));
       App.register_component(ifan_remote_sensor);
       return {ifan_remote_sensor};
+
     text_sensors:
-      name: 'RC command'
+      name: 'Remote command'
       on_value:
         then:
-          - if: # Light on/off
+          - logger.log:
+              format: "Remote command '%s' received."
+              args: [ "x" ]
+          - if:
               condition:
                 lambda: return x == "0104000104";
               then:
-                - light.toggle: light_comp
-          - if: # Buzzer on/off
+                - if:
+                    condition:
+                      lambda: return id(light_enabled).state;
+                    then:
+                      - light.toggle: light_comp
+                    else:
+                      - binary_sensor.template.publish:
+                          id: rf_button_light
+                          state: ON
+                      - delay: 500ms
+                      - binary_sensor.template.publish:
+                          id: rf_button_light
+                          state: OFF
+          - if:
               condition:
                 lambda: return x == "0106000101";
               then:
                 - switch.toggle: buzzer_enabled
-                - output.turn_on: buzzer
-                - delay: 10ms
-                - output.turn_off: buzzer
-          - if: # Fan off
+          - if:
               condition:
                 lambda: return x == "0104000100";
               then:
                 - fan.turn_off: fan_comp
-          - if: # Fan low speed
+          - if:
               condition:
                 lambda: return x == "0104000101";
               then:
                 - fan.turn_on:
                     id: fan_comp
                     speed: 1
-          - if: # Fan mid speed
+          - if:
               condition:
                 lambda: return x == "0104000102";
               then:
                 - fan.turn_on:
                     id: fan_comp
                     speed: 2
-          - if: # Fan high speed
+          - if:
               condition:
                 lambda: return x == "0104000103";
               then:
                 - fan.turn_on:
                     id: fan_comp
                     speed: 3
+          - if:
+              condition:
+                lambda: return x == "0101000102";
+              then:
+                - binary_sensor.template.publish:
+                    id: rf_button_link
+                    state: ON
+                - delay: 500ms
+                - binary_sensor.template.publish:
+                    id: rf_button_link
+                    state: OFF
+
+globals:
+  - id: last_fan_speed
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+script:
+  - id: fan_speed_set
+    mode: restart
+    parameters:
+      speed: int
+    then:
+      - if:
+          condition:
+            lambda: return (speed == 0);
+          then:
+            - output.turn_off: fan_relay_1
+            - output.turn_off: fan_relay_2
+            - output.turn_off: fan_relay_3
+      - if:
+          condition:
+            lambda: return (speed > 0);
+          then:
+            - if:
+                condition:
+                  lambda: return (id(fan_boost_enabled).state && (id(last_fan_speed) == 0));
+                then:
+                  - output.turn_off: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_on: fan_relay_3
+                  - delay: $fan_startup_boost_time
+            - if:
+                condition:
+                  lambda: return (speed == 1);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:
+                condition:
+                  lambda: return (speed == 2);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_on: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:
+                condition:
+                  lambda: return (speed == 3);
+                then:
+                  - output.turn_off: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_on: fan_relay_3
+      - lambda: |-
+          id(last_fan_speed) = speed;
+  - id: buzzer_play
+    mode: restart
+    parameters:
+      action: string
+    then:
+      - if:
+          condition:
+            lambda: return (action == "buzzer_off");
+          then:
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+            - delay: 50ms
+            - output.turn_on: buzzer
+            - delay: 50ms
+            - output.turn_off: buzzer
+      - if:
+          condition:
+            lambda: return (action == "buzzer_on");
+          then:
+            - output.turn_on: buzzer
+            - delay: 50ms
+            - output.turn_off: buzzer
+            - delay: 50ms
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+      - if:
+          condition:
+            lambda: return id(buzzer_enabled).state && (action == "fan_off");
+          then:
+            - output.turn_on: buzzer
+            - delay: 500ms
+            - output.turn_off: buzzer
+      - if:
+          condition:
+            lambda: return id(buzzer_enabled).state && (action == "fan_1");
+          then:
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+      - if:
+          condition:
+            lambda: return id(buzzer_enabled).state && (action == "fan_2");
+          then:
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+            - delay: 100ms
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+      - if:
+          condition:
+            lambda: return id(buzzer_enabled).state && (action == "fan_3");
+          then:
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+            - delay: 100ms
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
+            - delay: 100ms
+            - output.turn_on: buzzer
+            - delay: 100ms
+            - output.turn_off: buzzer
