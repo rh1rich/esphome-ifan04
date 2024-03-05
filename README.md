@@ -2,7 +2,38 @@
 Sonoff IFAN04 with ESPHome
 
 This ESPHome configuration file reproduces the functionality of the original IFAN04 firmware.
-Additinally it enbles the use of the I2C bus.
+Additinally it enables the use of the I2C bus.
+
+## New version - new features
+
+It took me a little bit longer than expected, but now the new mostly reworked version is finished and tested. :-)
+
+I completely changed the timing and control of the fan relays. The state changes and, if enabled, the buzzer are processed by parameterized scripts. So it is more flexible and easier to customize.
+I have also implemented many additional switches and sensor to send information to Home Assistant and configure the iFan04 via Home Assistant.
+I also added a SHT3x sensor to demonstrate the I2C abilities.
+
+### New configuration switches
+
+- Light enabled - Activates the ability to switch the light relay via remote control
+- Fan startup-boost enabled - Enables the startup-boost, if the fan is turned on (see Fan control and timing for more details)
+- Restart - Restart the iFan04
+
+### New sensors
+
+- Remote button light - Binary sensor which is activated for 500ms if the remote control button "Light" (top left) was pressed
+- Remote button link - Binary sensor which is activated for 500ms if the remote control button "Link" (bottom left or right) was pressed
+- Text sensor with WiFi informations (ip address, ssid, mac address, dns address)
+- Temperatur and humidity via SHT3x I2C sensor for demonstration
+
+## Work in progress
+
+Configurable 5 speed mode (off, low, mid-low, mid-high, high).
+If you replace the condensators on the pcb it might be usefull the have the ability to enabled them individually and combined. As a result you get 5 different speed modes.
+- all off
+- no cap (relay 3)
+- cap 1 (relay 1)
+- cap 2 (relay 2)
+- cap 1 & 2 (relay 1 & 2)
 
 ## IFAN04 hardware and GPIO assignments
 
@@ -44,7 +75,11 @@ The three different speeds (low, mid, high) are controlled via the three fan rel
 | mid | 1 + 2 |
 | high | 3 |
 
-The original firmware has also the following special timing sequence when activating the different speeds.
+**In the new version I have changed the timing sequence completely.**
+Now, if the fan is turned on and startup-boost is enabled, the fan is started with high speed for the time configured via the substitution variable "fan_startup_boost_time". After this time the speed is changed to the selected one (low or mid speed).
+If startup-boost is disabled, the fan speed is immmediatly set to the selected one (low, mid, high).
+
+The original firmware had the following special timing sequence on activating the different speeds.
 
 | Fan speed | timing sequence |
 | --------- | --------------- |
