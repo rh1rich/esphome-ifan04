@@ -1,6 +1,6 @@
 substitutions:
-  devicename: ifan04-test
-  friendly_devicename: iFan04 Test
+  devicename: ifan04
+  friendly_devicename: iFan04
   fan_startup_boost_time: 5s
 
 esphome:
@@ -35,7 +35,8 @@ api:
     key: !secret "api_key"
 
 ota:
-  password: !secret "ota_password"
+  - platform: esphome
+    password: !secret "ota_password"
 
 wifi:
   ssid: !secret "wifi_ssid"
@@ -51,6 +52,7 @@ captive_portal:
 
 web_server:
   port: 80
+  version: 3
 
 # GPIO00 ... Button
 # GPIO01 ... UART0 TX
@@ -201,12 +203,12 @@ sensor:
     name: 'Uptime'
     entity_category: diagnostic
     unit_of_measurement: s
-# The sensor SHT3x (I2C) is connected via the test pins TP10 and TP11 on the PCB.
-  - platform: sht3xd
-    temperature:
-      name: 'Temperatur'
-    humidity:
-      name: 'Humidity'
+# Expample for using a SHT3x sensor which is connected via the test pins TP10 (I2C SCL) and TP11 (I2C SDA) on the PCB.
+  # - platform: sht3xd
+  #   temperature:
+  #     name: 'Temperatur'
+  #   humidity:
+  #     name: 'Humidity'
 
 binary_sensor:
   - platform: gpio
