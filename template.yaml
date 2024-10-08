@@ -33,6 +33,9 @@ logger:
 api:
   encryption:
     key: !secret "api_key"
+  # Setting reboot timeout to 0 seconds to disable the automatic reboot, if no api connection (Home Assistant server).
+  # This is essential for offline usage.
+  reboot_timeout: 0s
 
 ota:
   - platform: esphome
