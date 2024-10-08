@@ -2,7 +2,7 @@
 Sonoff IFAN04 with ESPHome
 
 This ESPHome configuration file reproduces the functionality of the original IFAN04 firmware.
-Additinally it enables the use of the I2C bus.
+Additionally it enables the use of the I2C bus.
 
 ## New version - new features
 
