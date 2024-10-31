@@ -23,7 +23,7 @@ I also added a SHT3x sensor to demonstrate the I2C abilities.
 - Remote button light - Binary sensor which is activated for 500ms if the remote control button "Light" (top left) was pressed
 - Remote button link - Binary sensor which is activated for 500ms if the remote control button "Link" (bottom left or right) was pressed
 - Text sensor with WiFi informations (ip address, ssid, mac address, dns address)
-- Temperatur and humidity via SHT3x I2C sensor for demonstration
+- Temperature and humidity via SHT3x I2C sensor for demonstration
 
 ## Work in progress
 
