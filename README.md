@@ -4,27 +4,6 @@ Sonoff IFAN04 with ESPHome
 This ESPHome configuration file reproduces the functionality of the original IFAN04 firmware.
 Additionally it enables the use of the I2C bus.
 
-## New version - new features
-
-It took me a little bit longer than expected, but now the new mostly reworked version is finished and tested. :-)
-
-I completely changed the timing and control of the fan relays. The state changes and, if enabled, the buzzer are processed by parameterized scripts. So it is more flexible and easier to customize.
-I have also implemented many additional switches and sensor to send information to Home Assistant and configure the iFan04 via Home Assistant.
-I also added a SHT3x sensor to demonstrate the I2C abilities.
-
-### New configuration switches
-
-- Light enabled - Activates the ability to switch the light relay via remote control
-- Fan startup-boost enabled - Enables the startup-boost, if the fan is turned on (see Fan control and timing for more details)
-- Restart - Restart the iFan04
-
-### New sensors
-
-- Remote button light - Binary sensor which is activated for 500ms if the remote control button "Light" (top left) was pressed
-- Remote button link - Binary sensor which is activated for 500ms if the remote control button "Link" (bottom left or right) was pressed
-- Text sensor with WiFi informations (ip address, ssid, mac address, dns address)
-- Temperature and humidity via SHT3x I2C sensor for demonstration
-
 ## Work in progress
 
 Configurable 5 speed mode (off, low, mid-low, mid-high, high).
@@ -34,36 +13,6 @@ If you replace the condensators on the pcb it might be usefull the have the abil
 - cap 1 (relay 1)
 - cap 2 (relay 2)
 - cap 1 & 2 (relay 1 & 2)
-
-## IFAN04 hardware and GPIO assignments
-
-IFAN04 has a ESP8266 with 1 MB flash.
-
-The RF remote control receiver communicates with the ESP8266 via the UART0 serial interface. Baudrate is 9600.
-
-The fan and light is controlled with four relays.
-
-To use the I2C interface of the ESP8266 the SDA and SCL pins can be accessed through the test pins (TP10, TP11) on the backside of the PCB.
-
-| ESP pin | assignment | comments |
-| ------- | ---------- | -------- |
-| GPIO0 | Button | |
-| GPIO1 | UART0 TX | |
-| GPIO3 | UART0 RX | RF remote control receiver |
-| GPIO4 | I2C SDA | TP11 D_RX on the PCB backside |
-| GPIO5 | I2C SCL | TP10 D_TX on the PCB backside |
-| GPIO9 | Light relay | D7 on the PCB backside |
-| GPIO10 | Buzzer | |
-| GPIO12 | Fan relay 2 | D11 on the PCB backside, 3 uF on IFAN04-H |
-| GPIO13 | LED | |
-| GPIO14 | Fan relay 1 | D5 on the PCB backside, 2.5 uF on IFAN04-H |
-| GPIO15 | Fan relay 3 | D13 on the PCB backside, no cap |
-
-![Labled backside of the IFAN04-H](ifan04h_back_label.jpg)
-
-### Front- and backside of the IFAN04-H with connected cables for the I2C interface
-![Frontside of the IFAN04-H](ifan04h_front.jpg)
-![Backside of the IFAN04-H](ifan04h_back.jpg)
 
 ## Fan control and timing
 
@@ -87,6 +36,24 @@ The original firmware had the following special timing sequence on activating th
 | mid | relay 1 + 2 are turned on |
 | high | relay 1 is turned on, after 5 seconds relay 3 is turned on and relay 1 is turned off |
 
+## Configuration switches
+
+- Light enabled - Activates the ability to switch the light relay via remote control
+- Fan startup-boost enabled - Enables the startup-boost, if the fan is turned on
+- Restart - Restart the iFan04
+- Buzzer enabled
+
+## Additional sensors
+
+- RC button light - Binary sensor which is activated for 500ms, if the remote control button "Light" (top left) was pressed
+- RC button RF/WiFi - Binary sensor which is activated for 500ms, if the remote control button "RF clearing" (bottom left) or "WiFi pairing" (bottom right) was pressed (shortly)
+- RC button RF (long) - Binary sensor which is activated for 500ms, if the remote control button "RF clearing" (bottom left) was pressed for 5 seconds
+- RC button WiFi (long) - Binary sensor which is activated for 500ms, if the remote control button "WiFi pairing" (bottom right) was pressed for 5 seconds
+- Text sensor with WiFi informations (ip address, ssid, mac address, dns address)
+- Temperature and humidity via SHT3x I2C sensor for demonstration (commented out in the yaml file)
+- Text sensor with the esphome version
+- Uptime and WiFi signal strength in dBm and percent
+
 ## RF remote control
 
 RF remote control receiver sends the remote control commands via the serial interface UART0 to the ESP8266.
@@ -106,9 +73,12 @@ This text sensor component is implemented in the `ifan_remote.h` file and receiv
 | 5 | 0104000100 | Fan off |
 | 6 | 0104000101 | Low speed |
 | 7 | 0101000102 | RF clearing |
+| 7 | 0107000101 | RF clearing (long press of 5s) |
 | 8 (right-bottom) | 0101000102 | Wi-Fi pairing |
+| 8 (right-bottom) | 0101000101 | Wi-Fi pairing (long press of 5s) |
 
-The two bottom buttons are sending the same command code to the ESP8266.
+The two bottom buttons are sending the same command code to the ESP8266 when pressed less than 5 seconds.
+If the RF clearing button is pressed 5s, the remote control is disconnected (cleared) from the receiver. After that the remote control must be reconnected to the receiver to be used anymore.
 
 The custom text sensor is implemented in the configuration file as follows:
 
@@ -140,4 +110,40 @@ The custom text sensor is implemented in the configuration file as follows:
                   then:
                     ...
 
-As you can see to use the RF remote control the uart debugging must be disabled by setting `baud_rate: 0` in the logger-configuration.
+As you can see, to use the RF remote control the uart debugging must be disabled by setting `baud_rate: 0` in the logger-configuration.
+
+### (Re)Connect an remote control to the iFan-04
+
+To connect an remote control to the iFan-04 press any button within 5s after powering on the iFan-04. If this was successfull all buttons of this remote control should work, if not turn of the iFan-04 and repeat this operation.
+
+The iFan-04 RF receiver can learn up to 10 remote controls. The 11th remote control will overwrite the first one, ...
+
+## IFAN04 hardware and GPIO assignments
+
+IFAN04 has a ESP8266 with 1 MB flash.
+
+The RF remote control receiver communicates with the ESP8266 via the UART0 serial interface. Baudrate is 9600.
+
+The fan and light is controlled with four relays.
+
+To use the I2C interface of the ESP8266 the SDA and SCL pins can be accessed through the test pins (TP10, TP11) on the backside of the PCB.
+
+| ESP pin | assignment | comments |
+| ------- | ---------- | -------- |
+| GPIO0 | Button | |
+| GPIO1 | UART0 TX | |
+| GPIO3 | UART0 RX | RF remote control receiver |
+| GPIO4 | I2C SDA | TP11 D_RX on the PCB backside |
+| GPIO5 | I2C SCL | TP10 D_TX on the PCB backside |
+| GPIO9 | Light relay | D7 on the PCB backside |
+| GPIO10 | Buzzer | |
+| GPIO12 | Fan relay 2 | D11 on the PCB backside, 3 uF on IFAN04-H |
+| GPIO13 | LED | |
+| GPIO14 | Fan relay 1 | D5 on the PCB backside, 2.5 uF on IFAN04-H |
+| GPIO15 | Fan relay 3 | D13 on the PCB backside, no cap |
+
+![Labled backside of the IFAN04-H](ifan04h_back_label.jpg)
+
+### Front- and backside of the IFAN04-H with connected cables for the I2C interface
+![Frontside of the IFAN04-H](ifan04h_front.jpg)
+![Backside of the IFAN04-H](ifan04h_back.jpg)
