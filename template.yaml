@@ -59,7 +59,7 @@ web_server:
 
 # GPIO00 ... Button
 # GPIO01 ... UART0 TX
-# GPIO03 ... UART0 RX (RF-Remote)
+# GPIO03 ... UART0 RX (RF Remote Control)
 # GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
 # GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
 # GPIO09 ... Light Relay (D)
@@ -199,13 +199,25 @@ button:
     entity_category: diagnostic
 
 sensor:
-  - platform: wifi_signal
-    name: 'WiFi Signal'
-    entity_category: diagnostic
   - platform: uptime
     name: 'Uptime'
     entity_category: diagnostic
     unit_of_measurement: s
+  - platform: wifi_signal
+    id: wifi_signal_db
+    name: 'WiFi Signal dB'
+    entity_category: diagnostic
+# Sensor for the WiFi signal strength in percent (%)
+  - platform: copy
+    id: wifi_signal_rel
+    source_id: wifi_signal_db
+    name: "WiFi Signal"
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "%"
+    device_class: 'signal_strength'
 # Expample for using a SHT3x sensor which is connected via the test pins TP10 (I2C SCL) and TP11 (I2C SDA) on the PCB.
   # - platform: sht3xd
   #   temperature:
@@ -220,11 +232,17 @@ binary_sensor:
       number: GPIO00
       inverted: true
   - platform: template
-    name: "Remote button light"
-    id: rf_button_light
+    name: "RC button light"
+    id: rc_button_light
   - platform: template
-    name: "Remote button link"
-    id: rf_button_link
+    name: "RC button RF/WiFi"
+    id: rc_button_rfwifi
+  - platform: template
+    name: "RC button WiFi (long)"
+    id: rc_button_wifi_long
+  - platform: template
+    name: "RC button RF (long)"
+    id: rc_button_rf_long
 
 # Remote commands via UART0
 #  RX: GPIO03
@@ -233,14 +251,16 @@ binary_sensor:
 # starts with the top left button (1) and ends with the
 # bottom right button (8).
 #
-# 1 (Light)  = (AA55) 0104000104 (0A)
-# 2 (Buzzer) = (AA55) 0106000101 (09)
-# 3 (Fan 3)  = (AA55) 0104000103 (09)
-# 4 (Fan 2)  = (AA55) 0104000102 (08)
-# 5 (Fan 0)  = (AA55) 0104000100 (06)
-# 6 (Fan 1)  = (AA55) 0104000101 (07)
-# 7 = (AA55) 0101000102 (05)
-# 8 = (AA55) 0101000102 (05)
+# 1 (Light)           = (AA55) 0104000104 (0A)
+# 2 (Mute)            = (AA55) 0106000101 (09)
+# 3 (Fan high)        = (AA55) 0104000103 (09)
+# 4 (Fan mid)         = (AA55) 0104000102 (08)
+# 5 (Fan off)         = (AA55) 0104000100 (06)
+# 6 (Fan low)         = (AA55) 0104000101 (07)
+# 7 (RF Clearing)     = (AA55) 0101000102 (05)
+# 7 (RF Clearing 5s)  = (AA55) 0107000101 (0A) clears the connection between remote control and receiver!!
+# 8 (WiFi Pairing)    = (AA55) 0101000102 (05)
+# 8 (WiFi Pairing 5s) = (AA55) 0101000101 (04)
 
 text_sensor:
   - platform: version
@@ -267,13 +287,14 @@ text_sensor:
       return {ifan_remote_sensor};
 
     text_sensors:
-      name: 'Remote command'
+      name: 'RC command'
       on_value:
         then:
           - logger.log:
-              format: "Remote command '%s' received."
-              args: [ "x" ]
+              format: "RC command '%s' received."
+              args: [ 'x.c_str()' ]
           - if:
+              # Short press of the light button
               condition:
                 lambda: return x == "0104000104";
               then:
@@ -284,23 +305,26 @@ text_sensor:
                       - light.toggle: light_comp
                     else:
                       - binary_sensor.template.publish:
-                          id: rf_button_light
+                          id: rc_button_light
                           state: ON
                       - delay: 500ms
                       - binary_sensor.template.publish:
-                          id: rf_button_light
+                          id: rc_button_light
                           state: OFF
           - if:
+              # Short press of the mute button
               condition:
                 lambda: return x == "0106000101";
               then:
                 - switch.toggle: buzzer_enabled
           - if:
+              # Short press of the fan off button
               condition:
                 lambda: return x == "0104000100";
               then:
                 - fan.turn_off: fan_comp
           - if:
+              # Short press of the fan low button
               condition:
                 lambda: return x == "0104000101";
               then:
@@ -308,6 +332,7 @@ text_sensor:
                     id: fan_comp
                     speed: 1
           - if:
+              # Short press of the fan mid button
               condition:
                 lambda: return x == "0104000102";
               then:
@@ -315,6 +340,7 @@ text_sensor:
                     id: fan_comp
                     speed: 2
           - if:
+              # Short press of the fan high button
               condition:
                 lambda: return x == "0104000103";
               then:
@@ -322,15 +348,40 @@ text_sensor:
                     id: fan_comp
                     speed: 3
           - if:
+              # Short press of the RF or WiFi button
               condition:
                 lambda: return x == "0101000102";
               then:
                 - binary_sensor.template.publish:
-                    id: rf_button_link
+                    id: rc_button_rfwifi
                     state: ON
                 - delay: 500ms
                 - binary_sensor.template.publish:
-                    id: rf_button_link
+                    id: rc_button_rfwifi
+                    state: OFF
+          - if:
+              # Long press of the WiFi button
+              condition:
+                lambda: return x == "0101000101";
+              then:
+                - binary_sensor.template.publish:
+                    id: rc_button_wifi_long
+                    state: ON
+                - delay: 500ms
+                - binary_sensor.template.publish:
+                    id: rc_button_wifi_long
+                    state: OFF
+          - if:
+              # Long press of the RF clearing button
+              condition:
+                lambda: return x == "0107000101";
+              then:
+                - binary_sensor.template.publish:
+                    id: rc_button_rf_long
+                    state: ON
+                - delay: 500ms
+                - binary_sensor.template.publish:
+                    id: rc_button_rf_long
                     state: OFF
 
 globals:
