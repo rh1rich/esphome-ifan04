@@ -4,8 +4,12 @@ substitutions:
   fan_startup_boost_time: 5s
 
 external_components:
-  - source: github://rh1rich/esphome-ifan-remote
-  - source: github://rh1rich/esphome-morse-code
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-ifan-remote
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-morse-code
 
 esphome:
   name: $devicename
@@ -38,8 +42,8 @@ api:
   # Setting reboot timeout to 0 seconds to disable the automatic reboot, if no api connection (Home Assistant server).
   # This is essential for offline usage.
   reboot_timeout: 0s
-  services:
-    - service: play_morse_code
+  actions:
+    - action: play_morse_code
       variables:
         text_string: string
       then:

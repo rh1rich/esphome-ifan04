@@ -9,10 +9,10 @@ In addition, with a few basic soldering skills 🙂, the I2C bus can also be use
 ### New external components
 
 Due to the fact that the "custom components" were removed from ESPHome (2025.2.0), I was (finally) forced to engage with the creation of external components. 🙂
-Therefore, I have now implemented the RC receiver as its own external component `ifan_remote`, which is also stored in its own GitHub [repository] (https://github.com/rh1rich/esphome-ifan-remote).
+Therefore, I have now implemented the RC receiver as its own external component `ifan_remote`, which is also stored in its own [GitHub repository](https://github.com/rh1rich/esphome-ifan-remote).
 
 On this occasion, I also implemented an idea I had been nurturing for a long time: The sound output of the buzzer should be easier to handle and also be usable for notifications from HA.
-The idea was to develop a component that, similar to the `rtttl` component, outputs any beep sequence through a binary buzzer. The result was the `morse_code` component (GitHub [repository] (https://github.com/rh1rich/esphome-morse-code)), which is used in the new version of this IFAN04 template.
+The idea was to develop a component that, similar to the `rtttl` component, outputs any beep sequence through a binary buzzer. The result was the `morse_code` component ([GitHub repository](https://github.com/rh1rich/esphome-morse-code)), which is used in the new version of this IFAN04 template.
 
 ### Buzzer
 
@@ -189,7 +189,7 @@ With the user-defined action `play_morse_code`, any text can be sent from Home A
             - morse_code.start:
                 text: !lambda 'return text_string;'
 
-More details about the morse_code component can be found in the [Github repository] (https://github.com/rh1rich/esphome-morse-code).
+More details about the `morse_code` component can be found in its [Github repository](https://github.com/rh1rich/esphome-morse-code).
 
 ## IFAN04 hardware and GPIO assignments
 
