@@ -122,7 +122,7 @@ output:
     write_action:
       - if:
           condition:
-            lambda: return (state < 0.3);
+            lambda: return (state < 0.25);
           then:
             - script.execute:
                 id: buzzer_play
@@ -132,7 +132,7 @@ output:
                 speed: 0
       - if:
           condition:
-            lambda: return ((state >= 0.3) && (state < 0.6));
+            lambda: return ((state >= 0.25) && (state < 0.5));
           then:
             - script.execute:
                 id: buzzer_play
@@ -142,7 +142,7 @@ output:
                 speed: 1
       - if:
           condition:
-            lambda: return ((state >= 0.6) && (state < 0.9));
+            lambda: return ((state >= 0.5) && (state < 0.75));
           then:
             - script.execute:
                 id: buzzer_play
@@ -152,14 +152,24 @@ output:
                 speed: 2
       - if:
           condition:
-            lambda: return (state >= 0.9);
+            lambda: return ((state >= 0.75) && (state < 1));
+          then:
+            - script.execute:
+                id: buzzer_play
+                action: fan_2
+            - script.execute:
+                id: fan_speed_set
+                speed: 3
+      - if:
+          condition:
+            lambda: return (state >= 1);
           then:
             - script.execute:
                 id: buzzer_play
                 action: fan_3
             - script.execute:
                 id: fan_speed_set
-                speed: 3
+                speed: 4
 
 morse_code:
   output: buzzer
@@ -176,7 +186,7 @@ fan:
     name: 'Fan'
     id: fan_comp
     output: fan_relays
-    speed_count: 3
+    speed_count: 4
 
 switch:
   - platform: template
@@ -297,16 +307,24 @@ ifan_remote:
           condition:
             lambda: return (command.high == 0x0104 && command.low == 0x000102);
           then:
-            - fan.turn_on:
-                id: fan_comp
-                speed: 2
+            - if:
+                condition:
+                  lambda: return (id(fan_comp).speed == 2);
+                then:
+                  - fan.turn_on:
+                      id: fan_comp
+                      speed: 3
+                else:
+                  - fan.turn_on:
+                      id: fan_comp
+                      speed: 2
       - if:
           condition:
             lambda: return (command.high == 0x0104 && command.low == 0x000103);
           then:
             - fan.turn_on:
                 id: fan_comp
-                speed: 3
+                speed: 4
       - if:
           condition:
             lambda: return (command.high == 0x0104 && command.low == 0x000104);
@@ -434,14 +452,21 @@ script:
             - if:
                 condition:
                   lambda: return (speed == 2);
+                then:    # enable cap 2
+                  - output.turn_off: fan_relay_1
+                  - output.turn_on: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:
+                condition:
+                  lambda: return (speed == 3);
                 then:    # enable cap 1 & 2
                   - output.turn_on: fan_relay_1
                   - output.turn_on: fan_relay_2
                   - output.turn_off: fan_relay_3
             - if:
                 condition:
-                  lambda: return (speed == 3);
-                then:    # no caps
+                  lambda: return (speed == 4);
+                then:   # no caps
                   - output.turn_off: fan_relay_1
                   - output.turn_off: fan_relay_2
                   - output.turn_on: fan_relay_3
@@ -488,6 +513,12 @@ script:
           then:
             - morse_code.start:
                 text: "B"    # -...
+      - if:
+          condition:
+            lambda: return id(buzzer_enabled).state && (action == "fan_4");
+          then:
+            - morse_code.start:
+                text: "6"    # -....
       - if:
           condition:
             lambda: return id(buzzer_enabled).state && (action == "short");
