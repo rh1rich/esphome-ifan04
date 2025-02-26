@@ -238,7 +238,7 @@ sensor:
 # Expample for using a SHT3x sensor which is connected via the test pins TP10 (I2C SCL) and TP11 (I2C SDA) on the PCB.
   # - platform: sht3xd
   #   temperature:
-  #     name: 'Temperatur'
+  #     name: 'Temperature'
   #   humidity:
   #     name: 'Humidity'
 
