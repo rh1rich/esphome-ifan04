@@ -388,7 +388,7 @@ ifan_remote:
           then:
             - script.execute:
                 id: buzzer_play
-                action: long
+                action: rc_unpair
             - binary_sensor.template.publish:
                 id: rc_button_rf_long
                 state: ON
@@ -493,6 +493,12 @@ script:
           then:
             - morse_code.start:
                 text: "I"    # ..
+      - if:
+          condition:
+            lambda: return (action == "rc_unpair");
+          then:
+            - morse_code.start:
+                text: "O"    # ---
       - if:
           condition:
             lambda: return id(buzzer_enabled).state && (action == "fan_off");
