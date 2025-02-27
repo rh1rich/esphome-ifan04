@@ -1,8 +1,11 @@
 # esphome-ifan04
-Sonoff IFAN04 with ESPHome
+Sonoff IFAN04 (IFAN03) with ESPHome
 
 This configuration template enables the use of the Sonoff IFAN04 fan controller with ESPHome and Home Assistant.
 In addition, with a few basic soldering skills 🙂, the I2C bus can also be used.
+
+Based on my discoveries the IFAN04 and IFAN03 are almost identical. Therefore my template for IFAN04 should also work for IFAN03.
+The pcb layout of the IFAN03 is different, but the GPIO assignments are the same.
 
 ## Updates 2025-02-22
 
