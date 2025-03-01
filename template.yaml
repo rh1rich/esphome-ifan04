@@ -15,7 +15,7 @@ esphome:
   name: $devicename
   friendly_name: $friendly_devicename
   on_boot:
-    priority: 600
+    priority: 800
     then:
       - output.turn_off: buzzer
 
@@ -95,10 +95,10 @@ uart:
   id: uart_bus
 
 # I2C via the test points TP10 (= GPIO05) and TP11 (= GPIO04) on the PCB.
-i2c:
-  sda: GPIO04
-  scl: GPIO05
-  frequency: 200kHz
+# i2c:
+#   sda: GPIO04
+#   scl: GPIO05
+#   frequency: 200kHz
 
 output:
   - platform: gpio
@@ -236,6 +236,7 @@ sensor:
     unit_of_measurement: "%"
     device_class: 'signal_strength'
 # Expample for using a SHT3x sensor which is connected via the test pins TP10 (I2C SCL) and TP11 (I2C SDA) on the PCB.
+# Also enable i2c component!
   # - platform: sht3xd
   #   temperature:
   #     name: 'Temperature'
@@ -251,15 +252,23 @@ binary_sensor:
   - platform: template
     name: "RC button light"
     id: rc_button_light
+    filters:
+      - delayed_off: 300ms
   - platform: template
     name: "RC button RF/WiFi"
     id: rc_button_rfwifi
+    filters:
+      - delayed_off: 300ms
   - platform: template
     name: "RC button WiFi (long)"
     id: rc_button_wifi_long
+    filters:
+      - delayed_off: 300ms
   - platform: template
     name: "RC button RF (long)"
     id: rc_button_rf_long
+    filters:
+      - delayed_off: 300ms
 
 # Remote commands via UART0
 #  RX: GPIO03
@@ -282,9 +291,9 @@ binary_sensor:
 ifan_remote:
   on_command:
     then:
-      - logger.log:
-          format: "RC command '%04X:%06X' received."
-          args: [ 'command.high','command.low' ]
+      # - logger.log:
+      #     format: "RC command '%04X:%06X' received."
+      #     args: [ 'command.high','command.low' ]
       - if:
           condition:
             lambda: return (command.high == 0x0104 && command.low == 0x000100);
@@ -327,7 +336,6 @@ ifan_remote:
                   - binary_sensor.template.publish:
                       id: rc_button_light
                       state: ON
-                  - delay: 500ms
                   - binary_sensor.template.publish:
                       id: rc_button_light
                       state: OFF
@@ -346,7 +354,6 @@ ifan_remote:
             - binary_sensor.template.publish:
                 id: rc_button_rfwifi
                 state: ON
-            - delay: 500ms
             - binary_sensor.template.publish:
                 id: rc_button_rfwifi
                 state: OFF
@@ -360,7 +367,6 @@ ifan_remote:
             - binary_sensor.template.publish:
                 id: rc_button_wifi_long
                 state: ON
-            - delay: 500ms
             - binary_sensor.template.publish:
                 id: rc_button_wifi_long
                 state: OFF
@@ -374,7 +380,6 @@ ifan_remote:
             - binary_sensor.template.publish:
                 id: rc_button_rf_long
                 state: ON
-            - delay: 500ms
             - binary_sensor.template.publish:
                 id: rc_button_rf_long
                 state: OFF
@@ -416,10 +421,7 @@ script:
             - output.turn_off: fan_relay_1
             - output.turn_off: fan_relay_2
             - output.turn_off: fan_relay_3
-      - if:
-          condition:
-            lambda: return (speed > 0);
-          then:
+          else:
             - if:
                 condition:
                   lambda: return (id(fan_boost_enabled).state && (id(last_fan_speed) == 0));
@@ -428,24 +430,24 @@ script:
                   - output.turn_off: fan_relay_2
                   - output.turn_on: fan_relay_3
                   - delay: $fan_startup_boost_time
-            - if:
+            - if:    # enable cap 1
                 condition:
                   lambda: return (speed == 1);
-                then:    # enable cap 1
+                then:
                   - output.turn_on: fan_relay_1
                   - output.turn_off: fan_relay_2
                   - output.turn_off: fan_relay_3
-            - if:
+            - if:    # enable cap 1 & 2
                 condition:
                   lambda: return (speed == 2);
-                then:    # enable cap 1 & 2
+                then:
                   - output.turn_on: fan_relay_1
                   - output.turn_on: fan_relay_2
                   - output.turn_off: fan_relay_3
-            - if:
+            - if:    # no caps
                 condition:
                   lambda: return (speed == 3);
-                then:    # no caps
+                then:
                   - output.turn_off: fan_relay_1
                   - output.turn_off: fan_relay_2
                   - output.turn_on: fan_relay_3
@@ -476,37 +478,41 @@ script:
                 text: "O"    # ---
       - if:
           condition:
-            lambda: return id(buzzer_enabled).state && (action == "fan_off");
+            lambda: return id(buzzer_enabled).state;
           then:
-            - morse_code.start:
-                text: "T"    # -
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state && (action == "fan_1");
-          then:
-            - morse_code.start:
-                text: "N"    # -.
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state && (action == "fan_2");
-          then:
-            - morse_code.start:
-                text: "D"    # -..
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state && (action == "fan_3");
-          then:
-            - morse_code.start:
-                text: "B"    # -...
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state && (action == "short");
-          then:
-            - morse_code.start:
-                text: "E"    # .
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state && (action == "long");
-          then:
-            - morse_code.start:
-                text: "T"    # -
+            - if:
+                condition:
+                  lambda: return (action == "fan_off");
+                then:
+                  - morse_code.start:
+                      text: "T"    # -
+            - if:
+                condition:
+                  lambda: return (action == "fan_1");
+                then:
+                  - morse_code.start:
+                      text: "N"    # -.
+            - if:
+                condition:
+                  lambda: return (action == "fan_2");
+                then:
+                  - morse_code.start:
+                      text: "D"    # -..
+            - if:
+                condition:
+                  lambda: return (action == "fan_3");
+                then:
+                  - morse_code.start:
+                      text: "B"    # -...
+            - if:
+                condition:
+                  lambda: return (action == "short");
+                then:
+                  - morse_code.start:
+                      text: "E"    # .
+            - if:
+                condition:
+                  lambda: return (action == "long");
+                then:
+                  - morse_code.start:
+                      text: "T"    # -
