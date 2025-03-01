@@ -22,6 +22,9 @@ external_components:
       url: https://github.com/rh1rich/esphome-morse-code
 
 esphome:
+  project:
+    name: "rh1rich.iFan04"
+    version: "1.0.0"
   name: $devicename
   friendly_name: $friendly_devicename
   on_boot:
