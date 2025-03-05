@@ -19,9 +19,7 @@ The idea was to develop a component that, similar to the `rtttl` component, outp
 
 ### Buzzer
 
-Any button press produces now a short beep, if the buzzer is enabled.
-
-The beep sounds, that are produced for the different actions, can be easily customized in the `buzzer_play` script.
+Any button press now produces a short beep, if the buzzer is enabled.
 
 With the new user-defined action `play_morse_code`, any text can be sent from Home Assistant and played as Morse code through the buzzer.
 
@@ -155,31 +153,20 @@ The IFAN04 RF receiver can learn up to 10 remote controls. The 11th remote contr
 
 ## Buzzer
 
-The beep sounds, that are produced for the different actions, can be easily customized in the `buzzer_play` script. The beep sequence produced is the `text` after `morse_code.start` converted to Morse code.
+The beep sounds, that are produced for the different actions, can be easily customized with the `substitutions` defined at the beginning of the configuration.
+Each string defines the `text` which is "played" by `morse_code.start` as Morse code through the buzzer.
 
-In the following example the Morse code for the letter 'T', a long beep (dah), is played, if the fan is turned off.
-
-    external_components:
-      - source:
-          type: git
-          url: https://github.com/rh1rich/esphome-morse-code
-
-    morse_code:
-      output: buzzer
-      dit_duration: 50
-
-    script:
-      - id: buzzer_play
-        mode: restart
-        parameters:
-          action: string
-        then:
-          - if:
-              condition:
-                lambda: return id(buzzer_enabled).state && (action == "fan_off");
-              then:
-                - morse_code.start:
-                    text: "T"    # -
+  substitutions:
+    # Morse codes for the different buzzer sounds
+    code_buzzer_on:  "E"    # .
+    code_buzzer_off: "I"    # ..
+    code_fan_off:    "T"    # -
+    code_fan_1:      "N"    # -.
+    code_fan_2:      "D"    # -..
+    code_fan_3:      "B"    # -...
+    code_rc_unpair:  "O"    # ---
+    code_short:      "E"    # .
+    code_long:       "T"    # -
 
 With the user-defined action `play_morse_code`, any text can be sent from Home Assistant to IFAN04 and played as Morse code through the buzzer.
 
