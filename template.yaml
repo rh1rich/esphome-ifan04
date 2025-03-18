@@ -219,7 +219,7 @@ switch:
     id: light_enabled
     entity_category: config
     optimistic: True
-    restore_mode: RESTORE_DEFAULT_OFF
+    restore_mode: RESTORE_DEFAULT_ON
   - platform: template
     name: 'Fan startup-boost enabled'
     id: fan_boost_enabled
