@@ -1,0 +1,298 @@
+substitutions:
+  devicename: ifan04
+  friendly_devicename: iFan04
+  # Morse codes for the different buzzer sounds
+  code_buzzer_on:  "E"    # .
+  code_buzzer_off: "I"    # ..
+  code_fan_off:    "T"    # -
+  code_fan_1:      "N"    # -.
+  code_fan_2:      "D"    # -..
+  code_fan_3:      "B"    # -...
+  code_rc_unpair:  "O"    # ---
+  code_short:      "E"    # .
+  code_long:       "T"    # -
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-ifan-remote
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-morse-code
+
+esphome:
+  name: $devicename
+  friendly_name: $friendly_devicename
+  on_boot:
+    priority: 600
+    then:
+      - output.turn_off: buzzer
+
+esp8266:
+  board: esp8285
+  framework:
+    version: latest
+  early_pin_init: false
+  restore_from_flash: true
+
+preferences:
+  flash_write_interval: 5min
+
+# Enable logging
+# But disable it via UART0, because UART0 is used by the RF receiver
+logger:
+  baud_rate: 0
+  level: INFO
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret "api_key"
+  # Setting reboot timeout to 0 seconds to disable the automatic reboot, if no api connection (Home Assistant server).
+  # This is essential for offline usage.
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret "ota_password"
+
+wifi:
+  ssid: !secret "wifi_ssid"
+  password: !secret "wifi_password"
+  fast_connect: yes
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "$devicename"
+    password: !secret "wifi_fallback_password"
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+
+# GPIO00 ... Button
+# GPIO01 ... UART0 TX
+# GPIO03 ... UART0 RX (RF Remote Control)
+# GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
+# GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
+# GPIO09 ... Light Relay (D)
+# GPIO10 ... Buzzer
+# GPIO12 ... Fan Relay 2 (D11, 3uF cap on IFAN04-H)
+# GPIO13 ... LED
+# GPIO14 ... Fan Relay 1 (D5, 2.5uF cap on IFAN04-H)
+# GPIO15 ... Fan Relay 3 (D13, no cap)
+
+status_led:
+  pin:
+    number: GPIO13
+    inverted: true
+
+# UART0 (GPIO03) is used by the RF-receiver to send the received RF-commands
+# to the ESP.
+uart:
+  rx_pin: GPIO03
+  baud_rate: 9600
+  id: uart_bus
+
+output:
+  - platform: gpio
+    id: light_relay
+    pin:
+      number: GPIO09
+      inverted: true
+  - platform: gpio
+    id: buzzer
+    pin:
+      number: GPIO10
+      inverted: true
+  - platform: gpio
+    id: fan_relay_1
+    pin: GPIO14
+  - platform: gpio
+    id: fan_relay_2
+    pin: GPIO12
+  - platform: gpio
+    id: fan_relay_3
+    pin: GPIO15
+  - platform: template
+    id: fan_relays
+    type: float
+    write_action:
+      - if:
+          condition:
+            lambda: return (state < 0.3);
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - morse_code.start: $code_fan_off
+            - script.execute:
+                id: fan_speed_set
+                speed: 0
+      - if:
+          condition:
+            lambda: return ((state >= 0.3) && (state < 0.6));
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - morse_code.start: $code_fan_1
+            - script.execute:
+                id: fan_speed_set
+                speed: 1
+      - if:
+          condition:
+            lambda: return ((state >= 0.6) && (state < 0.9));
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - morse_code.start: $code_fan_2
+            - script.execute:
+                id: fan_speed_set
+                speed: 2
+      - if:
+          condition:
+            lambda: return (state >= 0.9);
+          then:
+            - if:
+                condition:
+                  lambda: return id(buzzer_enabled).state;
+                then:
+                  - morse_code.start: $code_fan_3
+            - script.execute:
+                id: fan_speed_set
+                speed: 3
+
+morse_code:
+  output: buzzer
+  dit_duration: 50
+
+light:
+  - platform: binary
+    name: 'Light'
+    id: light_comp
+    output: light_relay
+
+fan:
+  - platform: speed
+    name: 'Fan'
+    id: fan_comp
+    output: fan_relays
+    speed_count: 3
+
+switch:
+  - platform: template
+    name: 'Buzzer enabled'
+    id: buzzer_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - morse_code.start: $code_buzzer_on
+    on_turn_off:
+      - morse_code.start: $code_buzzer_off
+    
+# Remote commands via UART0
+#  RX: GPIO03
+#
+# The numbering of the following remote control buttons
+# starts with the top left button (1) and ends with the
+# bottom right button (8).
+#
+# 1 (Light)           = (AA55) 0104 000104 (0A)
+# 2 (Mute)            = (AA55) 0106 000101 (09)
+# 3 (Fan high)        = (AA55) 0104 000103 (09)
+# 4 (Fan mid)         = (AA55) 0104 000102 (08)
+# 5 (Fan off)         = (AA55) 0104 000100 (06)
+# 6 (Fan low)         = (AA55) 0104 000101 (07)
+# 7 (RF Clearing)     = (AA55) 0101 000102 (05)
+# 7 (RF Clearing 5s)  = (AA55) 0107 000101 (0A) clears the connection between remote control and receiver!!
+# 8 (WiFi Pairing)    = (AA55) 0101 000102 (05)
+# 8 (WiFi Pairing 5s) = (AA55) 0101 000101 (04)
+
+ifan_remote:
+  on_command:
+    then:
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000100);
+          then:
+            - fan.turn_off: fan_comp
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000101);
+          then:
+            - fan.turn_on:
+                id: fan_comp
+                speed: 1
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000102);
+          then:
+            - fan.turn_on:
+                id: fan_comp
+                speed: 2
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000103);
+          then:
+            - fan.turn_on:
+                id: fan_comp
+                speed: 3
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000104);
+          then:
+            - light.toggle: light_comp
+      - if:
+          condition:
+            lambda: return (command.high == 0x0106 && command.low == 0x000101);
+          then:
+            - switch.toggle: buzzer_enabled
+      - if:
+          condition:
+            lambda: return (command.high == 0x0107 && command.low == 0x000101);
+          then:
+            - morse_code.start: $code_rc_unpair
+
+script:
+  - id: fan_speed_set
+    mode: restart
+    parameters:
+      speed: int
+    then:
+      - if:
+          condition:
+            lambda: return (speed == 0);
+          then:
+            - output.turn_off: fan_relay_1
+            - output.turn_off: fan_relay_2
+            - output.turn_off: fan_relay_3
+          else:
+            - if:    # enable cap 1
+                condition:
+                  lambda: return (speed == 1);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:    # enable cap 1 & 2
+                condition:
+                  lambda: return (speed == 2);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_on: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:    # no caps
+                condition:
+                  lambda: return (speed == 3);
+                then:
+                  - output.turn_off: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_on: fan_relay_3
