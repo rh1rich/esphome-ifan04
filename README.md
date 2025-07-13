@@ -147,7 +147,7 @@ To use the RF remote control the uart debugging MUST be disabled by setting `bau
 
 ### (Re)Connect a remote control to the IFAN04
 
-To connect an remote control to the IFAN04 press any button within 5s after powering on the IFAN04. If this was successfull all buttons of this remote control should work, if not turn of the IFAN04 and repeat this operation.
+To connect an remote control to the IFAN04 press any button within 5s after powering on the IFAN04. (The device must be powered via mains power to enroll remotes.) If this was successfull all buttons of this remote control should work, if not turn of the IFAN04 and repeat this operation.
 
 The IFAN04 RF receiver can learn up to 10 remote controls. The 11th remote control will overwrite the first one, ...
 
