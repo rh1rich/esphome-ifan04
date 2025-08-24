@@ -46,7 +46,7 @@ preferences:
 # But disable it via UART0, because UART0 is used by the RF receiver
 logger:
   baud_rate: 0
-#  level: VERBOSE
+  level: INFO
 
 # Enable Home Assistant API
 api:
