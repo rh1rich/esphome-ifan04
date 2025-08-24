@@ -7,6 +7,40 @@ In addition, with a few basic soldering skills 🙂, the I2C bus can also be use
 Based on my discoveries the IFAN04 and IFAN03 are almost identical. Therefore my template for IFAN04 should also work for IFAN03.
 The pcb layout of the IFAN03 is different, but the GPIO assignments are the same.
 
+## Updates 2025-08-24
+
+### OTA updates and new ESPHome version 2025.8.0 🎉
+
+In recent months, many people, myself included, have faced the issue of OTA updates being impossible due to the firmware binary expanding with each new version of ESPHome. For example, with ESPHome version **2025.6.1**, the binary file for `template.yaml` consumed about **60%** of the available flash memory. 😟
+
+🔧 One workaround was to set the logger level to `INFO` and disable the `wifi ap`, `captive_portal`, and `web_server`. This reduced the binary size to approximately **51%** of the flash, making OTA updates feasible.
+
+🎉 However, with the release of ESPHome version **2025.8.0**, the binary size has significantly decreased! **WOW!!** A big thank you to the ESPHome team! 🙌 Now, the binary file for `template.yaml` uses about **56%** of the available flash memory.
+
+Since the default `DEBUG` level for the logger is typically unnecessary, I also changed it to `INFO`, resulting in further reduced flash usage of around **55%**.
+
+As a result, OTA updates should now function as expected. 😊
+
+<table>
+  <tr><th rowspan="2">Configuration</th>
+  <th colspan="2">ESPHome 2025.6.1</th>
+  <th colspan="2">ESPHome 2025.8.0</th></tr>
+  <tr>
+  <th>binary size</th>
+  <th>flash usage</th>
+  <th>binary size</th>
+  <th>flash usage</th></tr>
+  <tr><td>template.yaml</td><td>615257</td><td>60.1%</td><td>573337</td><td>56.0%</td></tr>
+  <tr><td>template_simple.yaml</td><td>574069</td><td>56.1%</td><td>533585</td><td>52.1%</td></tr>
+  <tr><td>template.yaml
+  <ul><li>logger.level = INFO</li>
+  <li>no web_server</li>
+  <li>no wifi ap & captive_portal</li></ul>
+  </td><td>523163</td><td>51.1%</td><td>497071</td><td>48.5%</td></tr>
+  <tr><td>NEW template.yaml<br />(logger.level = INFO)</td><td></td><td></td><td>561737</td><td>54.9%</td></tr>
+</table>
+
+
 ## Updates 2025-02-22
 
 ### New external components
