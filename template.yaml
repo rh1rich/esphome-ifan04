@@ -24,7 +24,7 @@ external_components:
 esphome:
   project:
     name: "rh1rich.iFan04"
-    version: "1.0.0"
+    version: "1.0.1"
   name: $devicename
   friendly_name: $friendly_devicename
   on_boot:
