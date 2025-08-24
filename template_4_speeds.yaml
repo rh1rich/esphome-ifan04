@@ -29,7 +29,7 @@ esphome:
   name: $devicename
   friendly_name: $friendly_devicename
   on_boot:
-    priority: 800
+    priority: 600
     then:
       - output.turn_off: buzzer
 
@@ -37,7 +37,7 @@ esp8266:
   board: esp8285
   framework:
     version: latest
-  early_pin_init: true
+  early_pin_init: false
   restore_from_flash: true
 
 preferences:
@@ -47,7 +47,7 @@ preferences:
 # But disable it via UART0, because UART0 is used by the RF receiver
 logger:
   baud_rate: 0
-#  level: VERBOSE
+  level: INFO
 
 # Enable Home Assistant API
 api:
@@ -232,7 +232,7 @@ switch:
     id: light_enabled
     entity_category: config
     optimistic: True
-    restore_mode: RESTORE_DEFAULT_OFF
+    restore_mode: RESTORE_DEFAULT_ON
   - platform: template
     name: 'Fan startup-boost enabled'
     id: fan_boost_enabled
@@ -472,102 +472,33 @@ script:
                   - output.turn_off: fan_relay_2
                   - output.turn_on: fan_relay_3
                   - delay: $fan_startup_boost_time
-            - if:
+            - if:    # enable cap 1
                 condition:
                   lambda: return (speed == 1);
-                then:    # enable cap 1
+                then:
                   - output.turn_on: fan_relay_1
                   - output.turn_off: fan_relay_2
                   - output.turn_off: fan_relay_3
-            - if:
+            - if:    # enable cap 2
                 condition:
                   lambda: return (speed == 2);
-                then:    # enable cap 2
+                then:
                   - output.turn_off: fan_relay_1
                   - output.turn_on: fan_relay_2
                   - output.turn_off: fan_relay_3
-            - if:
+            - if:    # enable cap 1 & 2
                 condition:
                   lambda: return (speed == 3);
-                then:    # enable cap 1 & 2
+                then:
                   - output.turn_on: fan_relay_1
                   - output.turn_on: fan_relay_2
                   - output.turn_off: fan_relay_3
-            - if:
+            - if:   # no caps
                 condition:
                   lambda: return (speed == 4);
-                then:   # no caps
+                then:
                   - output.turn_off: fan_relay_1
                   - output.turn_off: fan_relay_2
                   - output.turn_on: fan_relay_3
       - lambda: |-
           id(last_fan_speed) = speed;
-  - id: buzzer_play
-    mode: restart
-    parameters:
-      action: string
-    then:
-      - if:
-          condition:
-            lambda: return (action == "buzzer_off");
-          then:
-            - morse_code.start:
-                text: "E"    # .
-      - if:
-          condition:
-            lambda: return (action == "buzzer_on");
-          then:
-            - morse_code.start:
-                text: "I"    # ..
-      - if:
-          condition:
-            lambda: return (action == "rc_unpair");
-          then:
-            - morse_code.start:
-                text: "O"    # ---
-      - if:
-          condition:
-            lambda: return id(buzzer_enabled).state;
-          then:
-            - if:
-                condition:
-                  lambda: return (action == "fan_off");
-                then:
-                  - morse_code.start:
-                      text: "T"    # -
-            - if:
-                condition:
-                  lambda: return (action == "fan_1");
-                then:
-                  - morse_code.start:
-                      text: "N"    # -.
-            - if:
-                condition:
-                  lambda: return (action == "fan_2");
-                then:
-                  - morse_code.start:
-                      text: "D"    # -..
-            - if:
-                condition:
-                  lambda: return (action == "fan_3");
-                then:
-                  - morse_code.start:
-                      text: "B"    # -...
-            - if:
-                condition:
-                  lambda: return (action == "fan_4");
-                then:
-                  - morse_code.start:
-                      text: "6"    # -....
-            - if:
-                condition:
-                  lambda: return (action == "short");
-                then:
-                  - morse_code.start:
-                      text: "E"    # .
-            - if:
-                condition:
-                  lambda: return (action == "long");
-                then:
-                  - morse_code.start:
-                      text: "T"    # -
