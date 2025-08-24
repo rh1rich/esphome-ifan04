@@ -25,13 +25,16 @@ external_components:
 esphome:
   project:
     name: "rh1rich.iFan04"
-    version: "1.0.1"
+    version: "1.0.2"
   name: $devicename
   friendly_name: $friendly_devicename
   on_boot:
-    priority: 600
-    then:
-      - output.turn_off: buzzer
+    - priority: 600
+      then:
+        - output.turn_off: buzzer
+        - globals.set: # needed to disable actions on switch initialization (state restore)
+            id: switches_initialized
+            value: "true"
 
 esp8266:
   board: esp8285
@@ -224,9 +227,17 @@ switch:
     optimistic: True
     restore_mode: RESTORE_DEFAULT_ON
     on_turn_on:
-      - morse_code.start: $code_buzzer_on
+      - if: # only trigger action after the switch is initially set (restored)
+          condition:
+            lambda: return (id(switches_initialized));
+          then:
+            - morse_code.start: $code_buzzer_on
     on_turn_off:
-      - morse_code.start: $code_buzzer_off
+      - if: # only trigger action after the switch is initially set (restored)
+          condition:
+            lambda: return (id(switches_initialized));
+          then:
+            - morse_code.start: $code_buzzer_off
   - platform: template
     name: 'Light enabled'
     id: light_enabled
@@ -449,6 +460,10 @@ globals:
     type: int
     restore_value: no
     initial_value: "0"
+  - id: switches_initialized
+    type: bool
+    restore_value: no
+    initial_value: "false"
 
 script:
   - id: fan_speed_set
