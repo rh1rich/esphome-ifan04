@@ -7,6 +7,15 @@ In addition, with a few basic soldering skills 🙂, the I2C bus can also be use
 Based on my discoveries the IFAN04 and IFAN03 are almost identical. Therefore my template for IFAN04 should also work for IFAN03.
 The pcb layout of the IFAN03 is different, but the GPIO assignments are the same.
 
+## How to use?
+
+Include following snippet somewhere in your device configuration:
+
+    packages:
+      remote_package_shorthand: github://rh1rich/esphome-ifan04/main.yaml
+
+    # Rest of your configuration: api, ota, wifi, etc.
+
 ## Updates 2025-08-24
 
 ### OTA updates and new ESPHome version 2025.8.0 🎉
