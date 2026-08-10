@@ -1,0 +1,427 @@
+substitutions:
+  fan_startup_boost_time: 5s
+  # Morse codes for the different buzzer sounds
+  code_buzzer_on:  "E"    # .
+  code_buzzer_off: "I"    # ..
+  code_fan_off:    "T"    # -
+  code_fan_1:      "N"    # -.
+  code_fan_2:      "D"    # -..
+  code_fan_3:      "B"    # -...
+  code_rc_unpair:  "O"    # ---
+  code_short:      "E"    # .
+  code_long:       "T"    # -
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-ifan-remote
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-morse-code
+
+globals:
+  - id: last_fan_speed
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+# Disable logging it via UART0, because UART0 is used by the RF receiver
+logger:
+  baud_rate: 0
+
+esphome:
+  project:
+    name: "rh1rich.iFan04"
+    version: "2.0.0"
+  devices:
+    - id: light_device
+      name: Light
+    - id: fan_device
+      name: Fan
+  on_boot:
+    - priority: 600
+      then:
+        - output.turn_off: buzzer
+
+esp8266:
+  board: esp8285
+  framework:
+    version: latest
+  early_pin_init: false
+  restore_from_flash: true
+
+preferences:
+  flash_write_interval: 5min
+
+# GPIO00 ... Button
+# GPIO01 ... UART0 TX
+# GPIO03 ... UART0 RX (RF Remote Control)
+# GPIO04 ... I2C SDA (TP11 D_RX on PCB backside)
+# GPIO05 ... I2C SCL (TP10 D_TX on PCB backside)
+# GPIO09 ... Light Relay (D)
+# GPIO10 ... Buzzer
+# GPIO12 ... Fan Relay 2 (D11, 3uF cap on IFAN04-H)
+# GPIO13 ... LED
+# GPIO14 ... Fan Relay 1 (D5, 2.5uF cap on IFAN04-H)
+# GPIO15 ... Fan Relay 3 (D13, no cap)
+
+status_led:
+  pin:
+    number: GPIO13
+    inverted: true
+
+# UART0 (GPIO03) is used by the RF-receiver to send the received RF-commands
+# to the ESP.
+uart:
+  rx_pin: GPIO03
+  baud_rate: 9600
+  id: uart_bus
+
+output:
+  - platform: gpio
+    id: light_relay
+    pin:
+      number: GPIO09
+      inverted: true
+  - platform: gpio
+    id: buzzer
+    pin:
+      number: GPIO10
+      mode: OUTPUT_OPEN_DRAIN
+      inverted: true
+  - platform: gpio
+    id: fan_relay_1
+    pin: GPIO14
+  - platform: gpio
+    id: fan_relay_2
+    pin: GPIO12
+  - platform: gpio
+    id: fan_relay_3
+    pin: GPIO15
+  - platform: template
+    id: fan_relays
+    type: float
+    write_action:
+      - if:
+          condition:
+            lambda: return (state < 0.3);
+          then:
+            - script.execute:
+                id: fan_speed_set
+                speed: 0
+      - if:
+          condition:
+            lambda: return ((state >= 0.3) && (state < 0.6));
+          then:
+            - script.execute:
+                id: fan_speed_set
+                speed: 1
+      - if:
+          condition:
+            lambda: return ((state >= 0.6) && (state < 0.9));
+          then:
+            - script.execute:
+                id: fan_speed_set
+                speed: 2
+      - if:
+          condition:
+            lambda: return (state >= 0.9);
+          then:
+            - script.execute:
+                id: fan_speed_set
+                speed: 3
+
+morse_code:
+  output: buzzer
+  dit_duration: 50
+
+light:
+  - platform: binary
+    name: 'Light'
+    id: light_comp
+    output: light_relay
+    device_id: light_device
+
+fan:
+  - platform: speed
+    name: 'Fan'
+    id: fan_comp
+    output: fan_relays
+    speed_count: 3
+    device_id: fan_device
+
+switch:
+  - platform: template
+    name: 'Buzzer enabled'
+    id: buzzer_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+  - platform: template
+    name: 'Light enabled'
+    id: light_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+  - platform: template
+    name: 'Fan startup-boost enabled'
+    id: fan_boost_enabled
+    entity_category: config
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_OFF
+    
+binary_sensor:
+  - platform: gpio
+    name: "Button"
+    pin:
+      number: GPIO00
+      inverted: true
+
+event:
+  - platform: template
+    name: RC Command
+    event_types: [light_toggle, mute_toggle, fan_high, fan_mid, fan_low, fan_off, rf_wifi, rf_long, wifi_long]
+    id: rc_command
+    icon: "mdi:gesture-tap-button"
+
+# Remote commands via UART0
+#  RX: GPIO03
+#
+# The numbering of the following remote control buttons
+# starts with the top left button (1) and ends with the
+# bottom right button (8).
+#
+# 1 (Light)           = (AA55) 0104 000104 (0A)
+# 2 (Mute)            = (AA55) 0106 000101 (09)
+# 3 (Fan high)        = (AA55) 0104 000103 (09)
+# 4 (Fan mid)         = (AA55) 0104 000102 (08)
+# 5 (Fan off)         = (AA55) 0104 000100 (06)
+# 6 (Fan low)         = (AA55) 0104 000101 (07)
+# 7 (RF Clearing)     = (AA55) 0101 000102 (05)
+# 7 (RF Clearing 5s)  = (AA55) 0107 000101 (0A) clears the connection between remote control and receiver!!
+# 8 (WiFi Pairing)    = (AA55) 0101 000102 (05)
+# 8 (WiFi Pairing 5s) = (AA55) 0101 000101 (04)
+
+ifan_remote:
+  on_command:
+    then:
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000100);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: fan_off
+            - script.execute:
+                id: rc_buzzer
+                button: fan_off
+            - fan.turn_off: fan_comp
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000101);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: fan_low
+            - script.execute:
+                id: rc_buzzer
+                button: fan_low
+            - fan.turn_on:
+                id: fan_comp
+                speed: 1
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000102);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: fan_mid
+            - script.execute:
+                id: rc_buzzer
+                button: fan_mid
+            - fan.turn_on:
+                id: fan_comp
+                speed: 2
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000103);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: fan_high
+            - script.execute:
+                id: rc_buzzer
+                button: fan_high
+            - fan.turn_on:
+                id: fan_comp
+                speed: 3
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000104);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: light_toggle
+            - script.execute:
+                id: rc_buzzer
+                button: light_toggle
+            - if:
+                condition:
+                  lambda: return id(light_enabled).state;
+                then:
+                  - light.toggle: light_comp
+      - if:
+          condition:
+            lambda: return (command.high == 0x0106 && command.low == 0x000101);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: mute_toggle
+            - script.execute:
+                id: rc_buzzer
+                button: mute_toggle
+            - switch.toggle: buzzer_enabled
+      - if:
+          condition:
+            lambda: return (command.high == 0x0101 && command.low == 0x000102);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: rf_wifi
+            - script.execute:
+                id: rc_buzzer
+                button: rf_wifi
+      - if:
+          condition:
+            lambda: return (command.high == 0x0101 && command.low == 0x000101);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: wifi_long
+            - script.execute:
+                id: rc_buzzer
+                button: wifi_long
+      - if:
+          condition:
+            lambda: return (command.high == 0x0107 && command.low == 0x000101);
+          then:
+            - event.trigger:
+                id: rc_command
+                event_type: rf_long
+            - script.execute:
+                id: rc_buzzer
+                button: rf_long
+
+script:
+  - id: rc_buzzer
+    mode: restart
+    parameters:
+      button: string
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return (button == "rf_long");
+          then:
+            - morse_code.start: $code_rc_unpair
+          else:
+            - if:
+                condition:
+                  lambda: |-
+                    return (button == "mute_toggle");
+                then:
+                  - if:
+                      condition:
+                        lambda: |-
+                          return id(buzzer_enabled).state;
+                      then:
+                        - morse_code.start: $code_buzzer_off
+                      else:
+                        - morse_code.start: $code_buzzer_on
+                else:
+                  - if:
+                      condition:
+                        lambda: |-
+                          return (button == "light_toggle" || button == "rf_wifi") && (id(buzzer_enabled).state);
+                      then:
+                        - morse_code.start: $code_short
+                      else:
+                        - if:
+                            condition:
+                              lambda: |-
+                                return (button == "wifi_long") && (id(buzzer_enabled).state);
+                            then:
+                              - morse_code.start: $code_long
+                            else:
+                              - if:
+                                  condition:
+                                    lambda: |-
+                                      return (button == "fan_off") && (id(buzzer_enabled).state);
+                                  then:
+                                    - morse_code.start: $code_fan_off
+                                  else:
+                                    - if:
+                                        condition:
+                                          lambda: |-
+                                            return (button == "fan_low") && (id(buzzer_enabled).state);
+                                        then:
+                                          - morse_code.start: $code_fan_1
+                                        else:
+                                          - if:
+                                              condition:
+                                                lambda: |-
+                                                  return (button == "fan_mid") && (id(buzzer_enabled).state);
+                                              then:
+                                                - morse_code.start: $code_fan_2
+                                              else:
+                                                - if:
+                                                    condition:
+                                                      lambda: |-
+                                                        return (button == "fan_high") && (id(buzzer_enabled).state);
+                                                    then:
+                                                      - morse_code.start: $code_fan_3
+
+  - id: fan_speed_set
+    mode: restart
+    parameters:
+      speed: int
+    then:
+      - if:
+          condition:
+            lambda: return (speed == 0);
+          then:
+            - output.turn_off: fan_relay_1
+            - output.turn_off: fan_relay_2
+            - output.turn_off: fan_relay_3
+          else:
+            - if:
+                condition:
+                  lambda: return (id(fan_boost_enabled).state && (id(last_fan_speed) == 0));
+                then:
+                  - output.turn_off: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_on: fan_relay_3
+                  - delay: ${fan_startup_boost_time}
+            - if:    # enable cap 1
+                condition:
+                  lambda: return (speed == 1);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:    # enable cap 1 & 2
+                condition:
+                  lambda: return (speed == 2);
+                then:
+                  - output.turn_on: fan_relay_1
+                  - output.turn_on: fan_relay_2
+                  - output.turn_off: fan_relay_3
+            - if:    # no caps
+                condition:
+                  lambda: return (speed == 3);
+                then:
+                  - output.turn_off: fan_relay_1
+                  - output.turn_off: fan_relay_2
+                  - output.turn_on: fan_relay_3
+      - lambda: |-
+          id(last_fan_speed) = speed;
