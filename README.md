@@ -43,7 +43,6 @@ Use the package that matches the behavior you want:
 packages:
   ifan04:
     url: https://github.com/rh1rich/esphome-ifan04
-    ref: latest
     files:
       - main.yaml
 ```
