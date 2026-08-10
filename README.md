@@ -1,255 +1,444 @@
 # esphome-ifan04
-Sonoff IFAN04 (IFAN03) with ESPHome
 
-This configuration template enables the use of the Sonoff IFAN04 fan controller with ESPHome and Home Assistant.
-In addition, with a few basic soldering skills 🙂, the I2C bus can also be used.
+ESPHome package set for the Sonoff iFan04 and iFan03 fan controllers.
 
-Based on my discoveries the IFAN04 and IFAN03 are almost identical. Therefore my template for IFAN04 should also work for IFAN03.
-The pcb layout of the IFAN03 is different, but the GPIO assignments are the same.
+> [!NOTE]
+> Reusable ESPHome package and template set for Sonoff iFan04 and iFan03 devices, including RF remote handling, Home Assistant events, optional startup boost, and optional advanced buzzer features.
 
-## How to use?
+This repository provides reusable ESPHome package files for the iFan hardware-specific logic and template files that can be used as ready-to-adapt starter configurations. The goal is to keep the iFan04-specific behavior in shared package files so it can be reused without duplicating the full device configuration in every user project.
 
-Include following snippet somewhere in your device configuration:
+Based on the currently known hardware, the iFan04 and iFan03 use the same GPIO assignments. The PCB layout differs, but the ESPHome configuration should work on both models.
 
-    packages:
-      remote_package_shorthand: github://rh1rich/esphome-ifan04/main.yaml
+Release history and dated change notes are tracked in [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
-    # Rest of your configuration: api, ota, wifi, etc.
+## ✨ Project overview
 
-## Updates 2025-08-24
+The ESPHome packages in this repository provide:
 
-### OTA updates and new ESPHome version 2025.8.0 🎉
+- fan control for the relay and capacitor combinations used by the iFan
+- light control for the built-in light relay
+- RF remote control decoding via UART0 using the external `ifan_remote` component
+- forwarding decoded remote-control commands to Home Assistant as events
+- optional buzzer feedback for remote button presses
+- optional startup boost for fans that need a high-speed kick on start
+- optional advanced buzzer support with Morse-code output and a Home Assistant action
 
-In recent months, many people, myself included, have faced the issue of OTA updates being impossible due to the firmware binary expanding with each new version of ESPHome. For example, with ESPHome version **2025.6.1**, the binary file for `template.yaml` consumed about **60%** of the available flash memory. 😟
+The package files contain the iFan-specific logic. The template files add the common device settings around those packages, such as Wi-Fi, API, OTA, web server, diagnostics, and example extension points.
 
-🔧 One workaround was to set the logger level to `INFO` and disable the `wifi ap`, `captive_portal`, and `web_server`. This reduced the binary size to approximately **51%** of the flash, making OTA updates feasible.
+## 🚀 How to use
 
-🎉 However, with the release of ESPHome version **2025.8.0**, the binary size has significantly decreased! **WOW!!** A big thank you to the ESPHome team! 🙌 Now, the binary file for `template.yaml` uses about **56%** of the available flash memory.
+You can use this repository in two ways:
 
-Since the default `DEBUG` level for the logger is typically unnecessary, I also changed it to `INFO`, resulting in further reduced flash usage of around **55%**.
+1. Start from one of the template files in this repository and adapt the substitutions and secrets for your device.
+2. Import one of the package files directly into your own ESPHome configuration.
 
-As a result, OTA updates should now function as expected. 😊
+> [!TIP]
+> Start with a template file if you want a ready-to-adapt configuration. Import a package directly if you already have an ESPHome base config and only want the iFan-specific logic.
 
-<table>
-  <tr><th rowspan="2">Configuration</th>
-  <th colspan="2">ESPHome 2025.6.1</th>
-  <th colspan="2">ESPHome 2025.8.0</th></tr>
-  <tr>
-  <th>binary size</th>
-  <th>flash usage</th>
-  <th>binary size</th>
-  <th>flash usage</th></tr>
-  <tr><td>template.yaml</td><td>615257</td><td>60.1%</td><td>573337</td><td>56.0%</td></tr>
-  <tr><td>template_simple.yaml</td><td>574069</td><td>56.1%</td><td>533585</td><td>52.1%</td></tr>
-  <tr><td>template.yaml
-  <ul><li>logger.level = INFO</li>
-  <li>no web_server</li>
-  <li>no wifi ap & captive_portal</li></ul>
-  </td><td>523163</td><td>51.1%</td><td>497071</td><td>48.5%</td></tr>
-  <tr><td>NEW template.yaml<br />(logger.level = INFO)</td><td></td><td></td><td>561737</td><td>54.9%</td></tr>
-</table>
+### 📦 Direct package import
 
+Use the package that matches the behavior you want:
 
-## Updates 2025-02-22
+```yaml
+packages:
+  ifan04:
+    url: https://github.com/rh1rich/esphome-ifan04
+    ref: latest
+    files:
+      - main.yaml
+```
 
-### New external components
+Your own configuration then provides the usual device-specific sections such as `esphome`, `api`, `ota`, and `wifi`.
 
-Due to the fact that the "custom components" were removed from ESPHome (2025.2.0), I was (finally) forced to engage with the creation of external components. 🙂
-Therefore, I have now implemented the RC receiver as its own external component `ifan_remote`, which is also stored in its own [GitHub repository](https://github.com/rh1rich/esphome-ifan-remote).
+### 🧩 Template-based setup
 
-On this occasion, I also implemented an idea I had been nurturing for a long time: The sound output of the buzzer should be easier to handle and also be usable for notifications from HA.
-The idea was to develop a component that, similar to the `rtttl` component, outputs any beep sequence through a binary buzzer. The result was the `morse_code` component ([GitHub repository](https://github.com/rh1rich/esphome-morse-code)), which is used in the new version of this IFAN04 template.
+If you prefer a ready-made starting point, copy one of the template files and adjust:
 
-### Buzzer
+- substitutions such as `devicename` and `friendly_devicename`
+- secrets for Wi-Fi, API encryption, OTA password, and fallback AP
+- optional API actions, I2C, or sensors depending on the selected template
 
-Any button press now produces a short beep, if the buzzer is enabled.
+## 📦 Package files
 
-With the new user-defined action `play_morse_code`, any text can be sent from Home Assistant and played as Morse code through the buzzer.
+### ⚙️ `main.yaml`
 
-More information can be found below.
+The default iFan package.
 
-### Fan controller with 4 different speeds
+It provides:
 
-I have created a second template (template_4_speeds.yaml) that allows you to use 4 different speeds with the fan controller. These 4 speeds are mapped to the relays as follows:
+- standard light control
+- standard fan control for the usual iFan relay mapping
+- startup boost support controlled through `fan_startup_boost_time`
+- RF remote command handling
+- simple buzzer feedback only when a remote-control button is pressed
+- configuration switches for buzzer enable, light enable, and startup boost enable
 
-| Fan speed | used relays |
-| --------- | ----------- |
-| low | 1 |
-| mid 1 | 2 |
-| mid 2 | 1 + 2 |
-| high | 3 |
+Use this package when you want the normal iFan behavior with a compact feature set.
 
-In my standard IFAN04-H the two capacitors have nearly the same specs (2.5uF, 3uF). So the 4 speeds makes no sense, because speed 1 (low) and 2 (mid 1) would be equal.
-But if you replace the capacitors for example with 1.8uF and 3.9uF, you would have 4 different speeds (1.8uF, 3.9uF, 5.7uF and full).
+### 🔔 `main_adv_buzzer.yaml`
 
-## Fan control and timing (template.yaml)
+The advanced buzzer package.
 
-The three different speeds (low, mid, high) are controlled via the three fan relays and their associated capacitors as follows.
+It builds on the standard setup and adds:
 
-| Fan speed | used relays |
-| --------- | ----------- |
-| low | 1 |
-| mid | 1 + 2 |
-| high | 3 |
+- the external `morse_code` component
+- configurable Morse-style buzzer patterns via substitutions
+- different buzzer patterns for light, mute, fan-speed, pairing, and unpairing actions
+- support for a Home Assistant API action that plays custom Morse-code text through the buzzer
 
-### Startup boost
-If startup-boost is enabled and the fan is turned on, it always starts with high speed for the time configured via the substitution variable "fan_startup_boost_time". After this time the speed is changed to the selected one (low or mid speed).
-If startup-boost is disabled, the fan speed is immmediatly set to the selected one (low, mid, high).
+Use this package if you want richer audible feedback or want to trigger buzzer signaling from Home Assistant.
 
-### Original timing sequence
+### 🌀 `main_4_speeds.yaml`
 
-The original firmware had the following special timing sequence on activating the different speeds.
+The alternate 4-fan-speed package.
 
-| Fan speed | timing sequence |
-| --------- | --------------- |
-| low | relay 1 + 2 are turned on, after 5 seconds relay 2 is turned off |
-| mid | relay 1 + 2 are turned on |
-| high | relay 1 is turned on, after 5 seconds relay 3 is turned on and relay 1 is turned off |
+It changes the fan relay mapping so the controller can use four hardware speed states:
 
-## Configuration switches
+- low: relay 1
+- mid 1: relay 2
+- mid 2: relay 1 + relay 2
+- high: relay 3
 
-- Light enabled - Activates the ability to switch the light relay via remote control
-- Fan startup-boost enabled - Enables the startup-boost, if the fan is turned on
-- Restart - Restart the iFan04
-- Buzzer enabled
+Use this package if your capacitor setup supports four distinct usable speeds. This is mainly useful when the capacitors are chosen so the two middle combinations are meaningfully different.
 
-## Additional sensors
+On a typical iFan04-H, the two installed capacitors are close in value at about 2.5 uF and 3 uF. In that configuration, speed 1 and speed 2 can feel almost identical, so the four-speed mapping is usually not very useful. If the capacitors are changed to values with more separation, for example 1.8 uF and 3.9 uF, the four-speed package can produce four distinct operating points: 1.8 uF, 3.9 uF, 5.7 uF, and full speed without a capacitor.
 
-- RC button light - Binary sensor which is activated for 500ms, if the remote control button "Light" (top left) was pressed
-- RC button RF/WiFi - Binary sensor which is activated for 500ms, if the remote control button "RF clearing" (bottom left) or "WiFi pairing" (bottom right) was pressed (shortly)
-- RC button RF (long) - Binary sensor which is activated for 500ms, if the remote control button "RF clearing" (bottom left) was pressed for 5 seconds
-- RC button WiFi (long) - Binary sensor which is activated for 500ms, if the remote control button "WiFi pairing" (bottom right) was pressed for 5 seconds
-- Text sensor with WiFi informations (ip address, ssid, mac address, dns address)
-- Temperature and humidity via SHT3x I2C sensor for demonstration (commented out in the yaml file)
-- Text sensor with the esphome version
-- Uptime and WiFi signal strength in dBm and percent
+## 🧩 Template files
 
-## RF remote control
+### 🪶 `template_simple.yaml`
 
-RF remote control receiver sends the remote control commands via the serial interface UART0 to the ESP8266.
+Starter configuration for the default package.
 
-These commands consits of 8 bytes. The first two bytes are always `0xAA55` and the last byte is a checksum of the bytes 3 to 7, the command code.
+It imports `main.yaml` and adds the common surrounding ESPHome configuration:
 
-To receive and use these commands in ESPHome the serial data is processed by the external component `ifan_remote`.
-This component provides the command with 2 variables:
-- command.high ... bytes 3 and 4
-- command.low ... bytes 5, 6 and 7
+- device naming substitutions
+- API, OTA, Wi-Fi, captive portal, and web server
+- restart button
+- uptime and Wi-Fi signal sensors
+- ESPHome version and Wi-Fi info text sensors
 
-| RC button | command.high | command.low | label |
-| --------- | ------------ | ----------- | ----- |
-| 1 (left-top) | 0104 | 000104 | Light on/off |
-| 2 | 0106 | 000101 | Mute |
-| 3 | 0104 | 000103 | High speed |
-| 4 | 0104 | 000102 | Medium speed |
-| 5 | 0104 | 000100 | Fan off |
-| 6 | 0104 | 000101 | Low speed |
-| 7 | 0101 | 000102 | RF clearing |
-| 7 | 0107 | 000101 | RF clearing (long press of 5s) |
-| 8 (right-bottom) | 0101 | 000102 | Wi-Fi pairing |
-| 8 (right-bottom) | 0101 | 000101 | Wi-Fi pairing (long press of 5s) |
+This is the simplest starting point for most installations.
 
-The two bottom buttons are sending the same command code to the ESP8266 when pressed less than 5 seconds.
-If the RF clearing button is pressed 5s, the remote control is disconnected (cleared) from the receiver. After that the remote control must be reconnected to the receiver to be used anymore.
+### 🔔 `template.yaml`
 
-The external component is implemented in the configuration file as follows:
+Starter configuration for the advanced buzzer package.
 
-    external_components:
-      - source:
-          type: git
-          url: https://github.com/rh1rich/esphome-ifan-remote
+It imports `main_adv_buzzer.yaml` and adds:
 
-    logger:
-      baud_rate: 0
+- the `play_morse_code` Home Assistant API action
+- commented I2C setup for the test points on the PCB
+- commented SHT3x sensor example
+- the same common diagnostics and connectivity setup used by the other templates
 
-    uart:
-      rx_pin: GPIO03
-      baud_rate: 9600
-      id: uart_bus
+Use this template when you want the advanced buzzer features and optional hardware expansion examples.
 
-    ifan_remote:
-      on_command:
-        then:
-          - logger.log:
-              format: "RC command '%04X:%06X' received."
-              args: [ 'command.high','command.low' ]
-          - if:
-              condition:
-                lambda: return (command.high == 0x0104 && command.low == 0x000100);
-              then:
-                - fan.turn_off: fan_comp
-          - if:
-              condition:
-                lambda: return (command.high == 0x0104 && command.low == 0x000101);
-              then:
-                - fan.turn_on:
-                    id: fan_comp
-                    speed: 1
-                    ...
+### 🌀 `template_4_speeds.yaml`
 
-To use the RF remote control the uart debugging MUST be disabled by setting `baud_rate: 0` in the logger-configuration!
+Starter configuration for the four-speed package.
 
-### (Re)Connect a remote control to the IFAN04
+It imports `main_4_speeds.yaml` and provides the same common connectivity and diagnostic setup as the standard template.
 
-To connect an remote control to the IFAN04 press any button within 5s after powering on the IFAN04. (The device must be powered via mains power to enroll remotes.) If this was successfull all buttons of this remote control should work, if not turn of the IFAN04 and repeat this operation.
+Use this template when your fan hardware is configured for four distinct speeds.
 
-The IFAN04 RF receiver can learn up to 10 remote controls. The 11th remote control will overwrite the first one, ...
+## 🛠️ Usage examples
 
-## Buzzer
+### 1. Minimal configuration using the default package
 
-The beep sounds, that are produced for the different actions, can be easily customized with the `substitutions` defined at the beginning of the configuration.
-Each string defines the `text` which is "played" by `morse_code.start` as Morse code through the buzzer.
+```yaml
+substitutions:
+  devicename: bedroom_ifan
+  friendly_devicename: Bedroom iFan
 
-  substitutions:
-    # Morse codes for the different buzzer sounds
-    code_buzzer_on:  "E"    # .
-    code_buzzer_off: "I"    # ..
-    code_fan_off:    "T"    # -
-    code_fan_1:      "N"    # -.
-    code_fan_2:      "D"    # -..
-    code_fan_3:      "B"    # -...
-    code_rc_unpair:  "O"    # ---
-    code_short:      "E"    # .
-    code_long:       "T"    # -
+packages:
+  ifan04:
+    url: https://github.com/rh1rich/esphome-ifan04
+    ref: latest
+    files:
+      - main.yaml
 
-With the user-defined action `play_morse_code`, any text can be sent from Home Assistant to IFAN04 and played as Morse code through the buzzer.
+esphome:
+  name: $devicename
+  friendly_name: $friendly_devicename
 
-    api:
-      actions:
-        - action: play_morse_code
-          variables:
-            text_string: string
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+```
+
+### 2. Using the advanced buzzer package with a Home Assistant action
+
+```yaml
+packages:
+  ifan04:
+    url: https://github.com/rh1rich/esphome-ifan04
+    ref: latest
+    files:
+      - main_adv_buzzer.yaml
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+  actions:
+    - action: play_morse_code
+      variables:
+        text_string: string
+      then:
+        - morse_code.start:
+            text: !lambda 'return text_string;'
+```
+
+### 3. Customize the startup boost time
+
+The all packages support the `fan_startup_boost_time` substitution. This controls how long the fan starts on the high-speed relay before switching down to the selected lower speed when startup boost is enabled.
+
+```yaml
+packages:
+  ifan04:
+    url: https://github.com/rh1rich/esphome-ifan04
+    ref: latest
+    files:
+      - path: main.yaml
+        vars:
+          fan_startup_boost_time: 8s
+```
+
+If you enable the `Fan startup-boost enabled` switch and then turn the fan on at a low or medium speed, the package uses this time value before switching to the requested speed.
+
+> [!IMPORTANT]
+> The startup boost time only affects behavior when the `Fan startup-boost enabled` switch is turned on.
+
+## 🎛️ Configuration switches
+
+- `Light enabled` - Activates the ability to switch the light relay via remote control
+- `Fan startup-boost enabled` - Enables the startup-boost, if the fan is turned on
+- `Buzzer enabled` - Enables the buzzer-feedback when a remote button was pressed
+
+## 📡 RF remote control
+
+The RF receiver inside the iFan sends remote-control commands to the ESP8266 through UART0 on GPIO03 at 9600 baud.
+
+Each received command consists of 8 bytes. The first two bytes are always `0xAA55`. The last byte is a checksum. The payload in the middle identifies which remote button was pressed.
+
+The package files use the external `ifan_remote` component to decode these commands and map them to fan, light, buzzer, and event actions.
+
+Decoded remote-control commands are also exposed through the `RC Command` event entity in ESPHome and forwarded to Home Assistant as events. This makes it possible to build Home Assistant automations directly from remote button presses.
+
+> [!IMPORTANT]
+> To receive RF remote commands, UART logging must stay disabled because the RF receiver uses `UART0` on `GPIO03`.
+
+To use the RF receiver, UART logging must stay disabled:
+
+```yaml
+logger:
+  baud_rate: 0
+```
+
+The UART configuration used by the package is:
+
+```yaml
+uart:
+  rx_pin: GPIO03
+  baud_rate: 9600
+  id: uart_bus
+```
+
+The `ifan_remote` component exposes each command as two values:
+
+- `command.high`: bytes 3 and 4
+- `command.low`: bytes 5, 6 and 7
+
+The remote buttons map to the following values:
+
+| RC button | `command.high` | `command.low` | Function |
+| --------- | -------------- | ------------- | -------- |
+| 1 (top-left) | `0104` | `000104` | Light toggle |
+| 2 | `0106` | `000101` | Mute / buzzer toggle |
+| 3 | `0104` | `000103` | Fan high |
+| 4 | `0104` | `000102` | Fan medium |
+| 5 | `0104` | `000100` | Fan off |
+| 6 | `0104` | `000101` | Fan low |
+| 7 | `0101` | `000102` | RF clearing |
+| 7 | `0107` | `000101` | RF clearing (long presss > 5 seconds) |
+| 8 (bottom-right) | `0101` | `000102` | Wi-Fi pairing |
+| 8 (bottom-right) | `0101` | `000101` | Wi-Fi pairing (long presss > 5 seconds) |
+
+The two bottom buttons send the same short-press (< 5 seconds) command to the ESP8266. The long presses (> 5 seconds) are what allow RF clearing and Wi-Fi pairing to be distinguished.
+
+If the RF clearing button is held for 5 seconds, the remote is disconnected from the receiver and must be paired again.
+
+### 🏠 RC command events
+
+The package exposes the following remote-control events:
+
+| RC button | Press type | Event type | Meaning |
+| --------- | ---------- | ---------- | ------- |
+| 1 | short | `light_toggle` | Light toggle |
+| 2 | short | `mute_toggle` | Mute / buzzer toggle |
+| 3 | short | `fan_high` | Fan high |
+| 4 | short | `fan_mid` | Fan medium |
+| 5 | short | `fan_off` | Fan off |
+| 6 | short | `fan_low` | Fan low |
+| 7 / 8 | short | `rf_wifi` | RF clearing or Wi-Fi pairing button |
+| 7 | long | `rf_long` | RF clearing held for 5 seconds |
+| 8 | long | `wifi_long` | Wi-Fi pairing held for 5 seconds |
+
+These event types can be used in Home Assistant automations to react to remote button presses independently of the built-in light and fan behavior.
+
+### 🏠 Example Home Assistant automation
+
+```yaml
+alias: iFan remote long press notification
+triggers:
+  - trigger: event
+    event_type: esphome.rc_command
+    event_data:
+      device_id: ifan04
+      event_type: rf_long
+actions:
+  - action: notify.persistent_notification
+    data:
+      message: RF remote unpair button was held for 5 seconds.
+```
+
+The exact event payload shown in Home Assistant can vary depending on your entity and device naming, but the `event_type` values in the table above are the important inputs for automation logic.
+
+### 🧪 Example `ifan_remote` handling
+
+```yaml
+external_components:
+  - source:
+      type: git
+      url: https://github.com/rh1rich/esphome-ifan-remote
+
+logger:
+  baud_rate: 0
+
+uart:
+  rx_pin: GPIO03
+  baud_rate: 9600
+  id: uart_bus
+
+ifan_remote:
+  on_command:
+    then:
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000104);
           then:
-            - morse_code.start:
-                text: !lambda 'return text_string;'
+            - light.toggle: light_comp
+      - if:
+          condition:
+            lambda: return (command.high == 0x0104 && command.low == 0x000103);
+          then:
+            - fan.turn_on:
+                id: fan_comp
+                speed: 3
+```
 
-More details about the `morse_code` component can be found in its [Github repository](https://github.com/rh1rich/esphome-morse-code).
+### 🔗 Remote enrollment
 
-## IFAN04 hardware and GPIO assignments
+To pair a remote with the iFan04, power the device from mains and press any remote button within 5 seconds after power-on. If pairing fails, power-cycle the device and try again.
 
-IFAN04 has a ESP8266 with 1 MB flash.
+The RF receiver can learn up to 10 remotes. When an additional remote is learned, the oldest stored remote is overwritten.
 
-The RF remote control receiver communicates with the ESP8266 via the UART0 serial interface. Baudrate is 9600.
+## 🌡️ I2C interface and custom sensors
 
-The fan and light is controlled with four relays.
+GPIO04 and GPIO05 are available on PCB test points TP11 and TP10. This makes it possible to connect simple I2C sensors with a small amount of soldering.
 
-To use the I2C interface of the ESP8266 the SDA and SCL pins can be accessed through the test pins (TP10, TP11) on the backside of the PCB.
+The advanced buzzer template includes commented examples for I2C and an SHT3x sensor because it is the most feature-rich starter configuration, but the same approach can be used with any of the templates.
 
-| ESP pin | assignment | comments |
-| ------- | ---------- | -------- |
+> [!TIP]
+> I2C is available through PCB test points, so adding external sensors requires soldering but does not interfere with the RF receiver as long as `UART0` remains dedicated to RF input.
+
+### 1. Enable I2C
+
+```yaml
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  frequency: 200kHz
+```
+
+### 2. Add an SHT3x temperature and humidity sensor
+
+```yaml
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+  frequency: 200kHz
+
+sensor:
+  - platform: sht3xd
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+```
+
+### 3. Add another custom I2C sensor
+
+Any ESPHome-supported I2C sensor can be added in the same way. For example:
+
+```yaml
+i2c:
+  sda: GPIO04
+  scl: GPIO05
+
+sensor:
+  - platform: bmp280_i2c
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+    pressure:
+      name: "Pressure"
+    address: 0x76
+```
+
+## 🔧 Hardware description
+
+The iFan04 uses an ESP8266 with 1 MB flash.
+
+The hardware includes:
+
+- one relay for the light output
+- three relays for fan capacitor combinations
+- a buzzer on GPIO10
+- an RF receiver connected to UART0 RX
+- exposed PCB test points that can be used for I2C
+
+### 📍 GPIO assignments
+
+| ESP pin | Assignment | Notes |
+| ------- | ---------- | ----- |
 | GPIO0 | Button | |
 | GPIO1 | UART0 TX | |
 | GPIO3 | UART0 RX | RF remote control receiver |
-| GPIO4 | I2C SDA | TP11 D_RX on the PCB backside |
-| GPIO5 | I2C SCL | TP10 D_TX on the PCB backside |
-| GPIO9 | Light relay | D7 on the PCB backside |
+| GPIO4 | I2C SDA | TP11 / D_RX on PCB backside |
+| GPIO5 | I2C SCL | TP10 / D_TX on PCB backside |
+| GPIO9 | Light relay | D7 on PCB backside |
 | GPIO10 | Buzzer | |
-| GPIO12 | Fan relay 2 | D11 on the PCB backside, 3 uF on IFAN04-H |
+| GPIO12 | Fan relay 2 | D11 on PCB backside, 3 uF on IFAN04-H |
 | GPIO13 | LED | |
-| GPIO14 | Fan relay 1 | D5 on the PCB backside, 2.5 uF on IFAN04-H |
-| GPIO15 | Fan relay 3 | D13 on the PCB backside, no cap |
+| GPIO14 | Fan relay 1 | D5 on PCB backside, 2.5 uF on IFAN04-H |
+| GPIO15 | Fan relay 3 | D13 on PCB backside, no capacitor |
 
-![Labled backside of the IFAN04-H](ifan04h_back_label.jpg)
+### 📷 Hardware photos
 
-### Front- and backside of the IFAN04-H with connected cables for the I2C interface
+Backside of the IFAN04-H with labeled relays, uart and i2c connection points:
+
+![Labeled backside of the IFAN04-H](ifan04h_back_label.jpg)
+
+Front and backside of the IFAN04-H with connected I2C wires:
+
 ![Frontside of the IFAN04-H](ifan04h_front.jpg)
 ![Backside of the IFAN04-H](ifan04h_back.jpg)
