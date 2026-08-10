@@ -152,7 +152,6 @@ substitutions:
 packages:
   ifan04:
     url: https://github.com/rh1rich/esphome-ifan04
-    ref: latest
     files:
       - main.yaml
 
@@ -179,7 +178,6 @@ wifi:
 packages:
   ifan04:
     url: https://github.com/rh1rich/esphome-ifan04
-    ref: latest
     files:
       - main_adv_buzzer.yaml
 
@@ -204,7 +202,6 @@ The all packages support the `fan_startup_boost_time` substitution. This control
 packages:
   ifan04:
     url: https://github.com/rh1rich/esphome-ifan04
-    ref: latest
     files:
       - path: main.yaml
         vars:
